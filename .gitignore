@@ -30,3 +30,9 @@ dist-ssr
 amplify_outputs.json
 .aws
 
+
+# amplify
+node_modules
+.amplify
+amplify_outputs*
+amplifyconfiguration*

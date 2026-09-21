@@ -1,4 +1,7 @@
 import React from 'react';
+import { Authenticator } from '@aws-amplify/ui-react';
+import '@aws-amplify/ui-react/styles.css';
+
 import { TripWiseProvider, useTripWise } from './context/TripWiseContext';
 import { Sidebar } from './components/layout/Sidebar';
 import { TopBar } from './components/layout/TopBar';
@@ -27,24 +30,34 @@ const PageRenderer = () => {
   switch (activePage) {
     case 'Overview':
       return <OverviewPage />;
+
     case 'Expenses':
       return <ExpensesPage />;
+
     case 'Savings':
       return <SavingsPage />;
+
     case 'My Trips':
       return <MyTripsPage />;
+
     case 'Trip Planner':
       return <TripPlannerPage />;
+
     case 'Trip Spending':
       return <TripSpendingPage />;
+
     case 'AI Recovery':
       return <AIRecoveryPage />;
+
     case 'Insights':
       return <InsightsPage />;
+
     case 'Simulator':
       return <SimulatorPage />;
+
     case 'Settings':
       return <SettingsPage />;
+
     default:
       return <OverviewPage />;
   }
@@ -54,11 +67,20 @@ const MainLayout = () => {
   const { darkMode } = useTripWise();
 
   return (
-    <div className={`tripwise-app ${darkMode ? 'dark-theme' : 'light-theme'}`}>
+    <div
+      className={`tripwise-app ${
+        darkMode ? 'dark-theme' : 'light-theme'
+      }`}
+    >
       <Sidebar />
+
       <div className="tripwise-main-wrapper">
         <TopBar />
-        <main className="tripwise-content" id="main-content">
+
+        <main
+          className="tripwise-content"
+          id="main-content"
+        >
           <PageRenderer />
         </main>
       </div>
@@ -74,8 +96,12 @@ const MainLayout = () => {
 
 export default function App() {
   return (
-    <TripWiseProvider>
-      <MainLayout />
-    </TripWiseProvider>
+    <Authenticator>
+      {({ signOut, user }) => (
+        <TripWiseProvider>
+          <MainLayout />
+        </TripWiseProvider>
+      )}
+    </Authenticator>
   );
 }
