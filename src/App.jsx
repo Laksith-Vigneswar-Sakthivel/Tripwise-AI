@@ -22,8 +22,7 @@ import { SettingsPage } from './pages/SettingsPage';
 
 // Layout
 import { Sidebar } from './components/layout/Sidebar';
-import { TopBar } from './components/layout/Topbar';
-
+import { TopBar } from './components/layout/TopBar';
 const PageRenderer = () => {
   const { activePage } = useTripWise();
 
