@@ -23,6 +23,10 @@ import { SettingsPage } from './pages/SettingsPage';
 // Layout
 import { Sidebar } from './components/layout/Sidebar';
 import { TopBar } from './components/layout/TopBar';
+
+// Modals
+import { AddExpenseModal } from './components/modals/AddExpenseModal';
+
 const PageRenderer = () => {
   const { activePage } = useTripWise();
 
@@ -81,6 +85,9 @@ const MainLayout = () => {
         <main className="main-content">
           <PageRenderer />
         </main>
+
+        {/* Global Add Expense Modal */}
+        <AddExpenseModal />
       </div>
     </div>
   );
