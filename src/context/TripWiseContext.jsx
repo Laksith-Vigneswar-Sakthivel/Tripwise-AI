@@ -1,3 +1,4 @@
+import { generateRecoveryPlan } from '../services/aiFinanceService';
 import React, {
   createContext,
   useContext,
@@ -380,6 +381,114 @@ export const TripWiseProvider = ({
   }, [notifications]);
 
   // =========================================================
+// AUTOMATIC MONTHLY BUDGET ALERTS
+// =========================================================
+
+useEffect(() => {
+  const monthlyBudget = Number(user?.monthlyBudget || 10000);
+
+  if (monthlyBudget <= 0) return;
+
+  const totalSpent = expenses.reduce(
+    (sum, expense) =>
+      sum + Number(expense.amount || 0),
+    0
+  );
+
+  const usagePercent =
+    (totalSpent / monthlyBudget) * 100;
+
+  // Current month key prevents old alerts from
+  // blocking alerts in a new month.
+  const monthKey = new Date()
+    .toISOString()
+    .slice(0, 7);
+
+  let threshold = null;
+
+  if (usagePercent >= 100) {
+    threshold = 100;
+  } else if (usagePercent >= 90) {
+    threshold = 90;
+  } else if (usagePercent >= 80) {
+    threshold = 80;
+  }
+
+  if (!threshold) return;
+
+  const notificationId =
+    `monthly-budget-${monthKey}-${threshold}`;
+
+  setNotifications((prev) => {
+    const alreadyExists = prev.some(
+      (notification) =>
+        notification.id === notificationId
+    );
+
+    if (alreadyExists) {
+      return prev;
+    }
+
+    let title;
+    let message;
+    let type;
+
+    if (threshold >= 100) {
+      title = 'Monthly Budget Exceeded';
+      message = `You have spent ₹${Math.round(
+        totalSpent
+      ).toLocaleString(
+        'en-IN'
+      )} of your ₹${Math.round(
+        monthlyBudget
+      ).toLocaleString(
+        'en-IN'
+      )} monthly budget.`;
+      type = 'danger';
+    } else if (threshold >= 90) {
+      title = '90% of Monthly Budget Used';
+      message = `You have used ${Math.round(
+        usagePercent
+      )}% of your monthly budget. Only ₹${Math.max(
+        0,
+        Math.round(
+          monthlyBudget - totalSpent
+        )
+      ).toLocaleString(
+        'en-IN'
+      )} remains.`;
+      type = 'warning';
+    } else {
+      title = '80% of Monthly Budget Used';
+      message = `You have used ${Math.round(
+        usagePercent
+      )}% of your monthly budget. ₹${Math.max(
+        0,
+        Math.round(
+          monthlyBudget - totalSpent
+        )
+      ).toLocaleString(
+        'en-IN'
+      )} remains.`;
+      type = 'warning';
+    }
+
+    return [
+      {
+        id: notificationId,
+        title,
+        message,
+        type,
+        timestamp: new Date().toISOString(),
+        read: false,
+      },
+      ...prev,
+    ];
+  });
+}, [expenses, user?.monthlyBudget]);
+
+
+  // =========================================================
   // TOAST
   // =========================================================
 
@@ -421,6 +530,32 @@ export const TripWiseProvider = ({
       )
     );
   };
+
+  // =========================================================
+// NOTIFICATION ACTIONS
+// =========================================================
+
+const markNotificationAsRead = (notificationId) => {
+  setNotifications((prev) =>
+    prev.map((notification) =>
+      notification.id === notificationId
+        ? {
+            ...notification,
+            unread: false,
+          }
+        : notification
+    )
+  );
+};
+
+const markAllNotificationsAsRead = () => {
+  setNotifications((prev) =>
+    prev.map((notification) => ({
+      ...notification,
+      unread: false,
+    }))
+  );
+};
 
   // =========================================================
   // USER ACTIONS
@@ -989,130 +1124,450 @@ export const TripWiseProvider = ({
   };
 
   // =========================================================
-  // AI RECOVERY
-  // =========================================================
+// AI RECOVERY
+// =========================================================
 
-  const applyRecoveryPlan = (
-    tripId,
-    recoveryPlan
-  ) => {
-    setTrips((prev) =>
-      prev.map((trip) => {
-        if (
-          trip.id === tripId
-        ) {
-          return {
-            ...trip,
+const [monthlyRecoveryPlan, setMonthlyRecoveryPlan] = useState(null);
 
-            projectedSpendOverride:
-              recoveryPlan.newProjectedSpend,
+const applyRecoveryPlan = (tripId, recoveryPlan) => {
+  setTrips((prev) =>
+    prev.map((trip) => {
+      if (trip.id === tripId) {
+        return {
+          ...trip,
+          projectedSpendOverride: recoveryPlan.newProjectedSpend,
+          recoveryApplied: true,
+          recoveryDetails: recoveryPlan,
+        };
+      }
 
-            recoveryApplied:
-              true,
+      return trip;
+    })
+  );
 
-            recoveryDetails:
-              recoveryPlan,
-          };
-        }
+  addToast({
+    title: 'AI Recovery Applied! 🚀',
+    message: `Projected spend rebalanced to ₹${Number(
+      recoveryPlan.newProjectedSpend || 0
+    ).toLocaleString('en-IN')}. Budget protected!`,
+    type: 'success',
+  });
+};
 
-        return trip;
-      })
-    );
+const resetRecoveryPlan = (tripId) => {
+  setTrips((prev) =>
+    prev.map((trip) => {
+      if (trip.id === tripId) {
+        return {
+          ...trip,
+          projectedSpendOverride: 13750,
+          recoveryApplied: false,
+          recoveryDetails: null,
+        };
+      }
 
-    addToast({
-      title:
-        'AI Recovery Applied! 🚀',
+      return trip;
+    })
+  );
 
-      message: `Projected spend rebalanced to ₹${recoveryPlan.newProjectedSpend.toLocaleString(
-        'en-IN'
-      )}. Budget protected!`,
+  addToast({
+    title: 'Recovery Reset',
+    message: 'Reverted trip projection to unadjusted state.',
+    type: 'info',
+  });
+};
 
-      type: 'success',
-    });
+// =========================================================
+// MONTHLY EXPENSE RECOVERY
+// =========================================================
+
+const generateMonthlyRecoveryPlan = () => {
+  const rawBudget = Number(user?.monthlyBudget);
+
+  const monthlyBudget =
+    Number.isFinite(rawBudget) && rawBudget > 0
+      ? rawBudget
+      : 10000;
+
+  const totalSpent = expenses.reduce(
+    (sum, expense) =>
+      sum + Number(expense.amount || 0),
+    0
+  );
+
+  // ------------------------------------------------------------
+  // MONTHLY FORECAST
+  // Treat the month as a 4-week spending cycle.
+  // Example: September 21 = week 3, with week 4 remaining.
+  // ------------------------------------------------------------
+
+  const today = new Date();
+  const dayOfMonth = today.getDate();
+
+  const weeksElapsed = Math.min(
+    4,
+    Math.max(1, Math.ceil(dayOfMonth / 7))
+  );
+
+  const weeksRemaining = Math.max(
+    0,
+    4 - weeksElapsed
+  );
+
+  const weeklyAverage =
+    weeksElapsed > 0
+      ? totalSpent / weeksElapsed
+      : totalSpent;
+
+  const projectedSpend =
+    totalSpent +
+    weeklyAverage * weeksRemaining;
+
+  const projectedOverspend = Math.max(
+    0,
+    projectedSpend - monthlyBudget
+  );
+
+  const remainingBudget = Math.max(
+    0,
+    monthlyBudget - totalSpent
+  );
+
+  const safeWeeklyLimit =
+    weeksRemaining > 0
+      ? remainingBudget / weeksRemaining
+      : 0;
+
+  // ------------------------------------------------------------
+  // CATEGORY ANALYSIS
+  // ------------------------------------------------------------
+
+  const categoryTotals = expenses.reduce(
+    (acc, expense) => {
+      const category =
+        expense.category || 'Other';
+
+      acc[category] =
+        (acc[category] || 0) +
+        Number(expense.amount || 0);
+
+      return acc;
+    },
+    {}
+  );
+
+  // Higher = easier to reduce.
+  const priority = {
+    Shopping: 1.0,
+    Entertainment: 0.95,
+    Travel: 0.9,
+    Activities: 0.9,
+    Other: 0.8,
+    Transport: 0.65,
+    Food: 0.55,
+    Bills: 0.3,
+    Healthcare: 0.15,
+    Education: 0.15,
   };
 
-  // =========================================================
-  // RESET RECOVERY
-  // =========================================================
+  const recommendations = {
+    Shopping: {
+      action:
+        'Pause non-essential shopping during the remaining week.',
+      tip:
+        'Use a 48-hour waiting rule before discretionary purchases.',
+    },
 
-  const resetRecoveryPlan = (
-    tripId
-  ) => {
-    setTrips((prev) =>
-      prev.map((trip) => {
-        if (
-          trip.id === tripId
-        ) {
-          return {
-            ...trip,
+    Entertainment: {
+      action:
+        'Reduce optional entertainment spending.',
+      tip:
+        'Prefer free activities until the month closes.',
+    },
 
-            projectedSpendOverride:
-              13750,
+    Travel: {
+      action:
+        'Reduce non-essential travel spending.',
+      tip:
+        'Combine trips and use lower-cost transportation where practical.',
+    },
 
-            recoveryApplied:
-              false,
+    Activities: {
+      action:
+        'Reduce optional activities and outings.',
+      tip:
+        'Choose low-cost activities for the remaining week.',
+    },
 
-            recoveryDetails:
-              null,
-          };
-        }
+    Other: {
+      action:
+        'Reduce miscellaneous discretionary spending.',
+      tip:
+        'Track small purchases because they add up quickly.',
+    },
 
-        return trip;
-      })
-    );
+    Transport: {
+      action:
+        'Reduce unnecessary cab and ride-hailing expenses.',
+      tip:
+        'Use public transport or shared rides where practical.',
+    },
 
-    addToast({
-      title: 'Recovery Reset',
+    Food: {
+      action:
+        'Control food delivery and restaurant spending.',
+      tip:
+        'Set a strict food limit for the remaining week.',
+    },
 
-      message:
-        'Reverted trip projection to unadjusted state.',
+    Bills: {
+      action:
+        'Avoid optional recurring expenses.',
+      tip:
+        'Review subscriptions before making another payment.',
+    },
 
-      type: 'info',
-    });
+    Healthcare: {
+      action:
+        'Protect essential healthcare spending.',
+      tip:
+        'Only reduce optional healthcare purchases.',
+    },
+
+    Education: {
+      action:
+        'Protect essential education expenses.',
+      tip:
+        'Reduce only optional academic purchases.',
+    },
   };
 
-  // =========================================================
-  // RESET DEMO DATA
-  // =========================================================
+  // ------------------------------------------------------------
+  // RECOVERY TARGET
+  // ------------------------------------------------------------
 
-  const resetDemoData = () => {
-    setUser(INITIAL_USER);
+  const recoveryNeeded = projectedOverspend;
 
-    setExpenses(
-      INITIAL_EXPENSES
-    );
+  const recoveryCuts = [];
 
-    setTrips(
-      INITIAL_TRIPS
-    );
+  let remainingRecovery = recoveryNeeded;
 
-    setTripExpenses(
-      INITIAL_TRIP_EXPENSES
-    );
+  const categories = Object.entries(categoryTotals)
+    .map(([category, amount]) => ({
+      category,
+      amount,
+      priority:
+        priority[category] ?? 0.7,
+    }))
+    .sort((a, b) => {
+      if (b.priority !== a.priority) {
+        return b.priority - a.priority;
+      }
 
-    setNotifications(
-      INITIAL_NOTIFICATIONS
-    );
-
-    setActiveTripId(
-      'trip-goa-2026'
-    );
-
-    setDarkMode(true);
-
-    localStorage.clear();
-
-    addToast({
-      title:
-        'Demo Data Restored',
-
-      message:
-        'All balances, trips, and demo state have been reset.',
-
-      type: 'info',
+      return b.amount - a.amount;
     });
+
+  // ------------------------------------------------------------
+  // CATEGORY RECOVERY ALLOCATION
+  // ------------------------------------------------------------
+
+  for (const item of categories) {
+    if (remainingRecovery <= 0) {
+      break;
+    }
+
+    // Never recommend cutting more than 35%
+    // of a category's historical spending.
+    const maximumCut =
+      Math.round(item.amount * 0.35);
+
+    if (maximumCut <= 0) {
+      continue;
+    }
+
+    const cutAmount = Math.min(
+      maximumCut,
+      remainingRecovery
+    );
+
+    const recommendation =
+      recommendations[item.category] ||
+      recommendations.Other;
+
+    recoveryCuts.push({
+      category: item.category,
+      spent: item.amount,
+      cutAmount,
+      action: recommendation.action,
+      tip: recommendation.tip,
+    });
+
+    remainingRecovery -= cutAmount;
+  }
+
+  // ------------------------------------------------------------
+  // FALLBACK
+  // ------------------------------------------------------------
+
+  if (remainingRecovery > 0) {
+    recoveryCuts.push({
+      category: 'General Spending',
+      spent: totalSpent,
+      cutAmount: remainingRecovery,
+      action:
+        'Temporarily reduce discretionary spending across categories.',
+      tip:
+        'Keep remaining-week spending within the recommended limit.',
+    });
+
+    remainingRecovery = 0;
+  }
+
+  const totalRecovery =
+    recoveryCuts.reduce(
+      (sum, item) =>
+        sum + Number(item.cutAmount || 0),
+      0
+    );
+
+  const recoveryTarget =
+    Math.max(
+      monthlyBudget,
+      projectedSpend - totalRecovery
+    );
+
+  const plan = {
+    type: 'monthly',
+
+    // IMPORTANT:
+    // This is forecast-based, not simply
+    // current-budget-overage based.
+    isOverBudget:
+      projectedOverspend > 0,
+
+    monthlyBudget,
+
+    totalSpent,
+
+    weeksElapsed,
+
+    weeksRemaining,
+
+    weeklyAverage,
+
+    projectedSpend,
+
+    projectedOverspend,
+
+    remainingBudget,
+
+    safeWeeklyLimit,
+
+    recoveryNeeded,
+
+    totalRecovery,
+
+    newProjectedSpend:
+      projectedOverspend > 0
+        ? monthlyBudget
+        : projectedSpend,
+
+    recoveryTarget,
+
+    categoryTotals,
+
+    recoveryCuts,
+
+    summary:
+      projectedOverspend > 0
+        ? `At your current spending pace of ₹${Math.round(
+            weeklyAverage
+          ).toLocaleString(
+            'en-IN'
+          )} per week, you are projected to finish the month at approximately ₹${Math.round(
+            projectedSpend
+          ).toLocaleString(
+            'en-IN'
+          )}, which is ₹${Math.round(
+            projectedOverspend
+          ).toLocaleString(
+            'en-IN'
+          )} above your ₹${Math.round(
+            monthlyBudget
+          ).toLocaleString(
+            'en-IN'
+          )} budget. You have approximately ₹${Math.round(
+            remainingBudget
+          ).toLocaleString(
+            'en-IN'
+          )} available for the remaining week.`
+        : `At your current spending pace, you are projected to remain within your ₹${Math.round(
+            monthlyBudget
+          ).toLocaleString(
+            'en-IN'
+          )} monthly budget.`,
   };
 
+  setMonthlyRecoveryPlan(plan);
+
+  return plan;
+};
+
+const applyMonthlyRecoveryPlan = (recoveryPlan) => {
+  if (!recoveryPlan) return;
+
+  setMonthlyRecoveryPlan({
+    ...recoveryPlan,
+    recoveryApplied: true,
+  });
+
+  addToast({
+    title: 'Monthly AI Recovery Applied! 🚀',
+    message: `Your recovery target is ₹${Number(
+      recoveryPlan.newProjectedSpend || 0
+    ).toLocaleString('en-IN')}.`,
+    type: 'success',
+  });
+};
+
+const resetMonthlyRecoveryPlan = () => {
+  setMonthlyRecoveryPlan(null);
+
+  addToast({
+    title: 'Recovery Reset',
+    message: 'Monthly budget recovery plan has been reset.',
+    type: 'info',
+  });
+};
+
+// =========================================================
+// RESET DEMO DATA
+// =========================================================
+
+const resetDemoData = () => {
+  setUser(INITIAL_USER);
+  setExpenses(INITIAL_EXPENSES);
+  setTrips(INITIAL_TRIPS);
+  setTripExpenses(INITIAL_TRIP_EXPENSES);
+  setNotifications(INITIAL_NOTIFICATIONS);
+
+  setActiveTripId('trip-goa-2026');
+
+  setDarkMode(true);
+
+  setMonthlyRecoveryPlan(null);
+
+  setEditingExpense(null);
+  setIsAddExpenseModalOpen(false);
+  setIsQuickSearchOpen(false);
+
+  addToast({
+    title: 'Demo Data Restored',
+    message:
+      'All balances, trips, notifications, and demo state have been reset.',
+    type: 'info',
+  });
+};
   // =========================================================
   // PROVIDER
   // =========================================================
@@ -1145,12 +1600,20 @@ export const TripWiseProvider = ({
         deleteTripExpense,
 
         applyRecoveryPlan,
-        resetRecoveryPlan,
+resetRecoveryPlan,
+
+monthlyRecoveryPlan,
+generateMonthlyRecoveryPlan,
+applyMonthlyRecoveryPlan,
+resetMonthlyRecoveryPlan,
 
         notifications,
 
-        isAddExpenseModalOpen,
-        setIsAddExpenseModalOpen,
+markNotificationAsRead,
+markAllNotificationsAsRead,
+
+isAddExpenseModalOpen,
+setIsAddExpenseModalOpen,
 
         isQuickSearchOpen,
         setIsQuickSearchOpen,
@@ -1174,6 +1637,8 @@ export const TripWiseProvider = ({
     </TripWiseContext.Provider>
   );
 };
+
+
 
 // =========================================================
 // HOOK

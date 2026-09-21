@@ -4464,3 +4464,345 @@ input:checked + .slider::before {
     padding: 18px;
   }
 }
+
+/* ============================================================
+   AI RECOVERY MODE TOGGLE
+   ============================================================ */
+
+.recovery-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgba(96, 165, 250, 0.22);
+  border-radius: 14px;
+  background: rgba(10, 18, 35, 0.92);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.recovery-mode-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  min-height: 42px;
+  padding: 0 16px;
+
+  border: 1px solid transparent;
+  border-radius: 10px;
+
+  background: transparent;
+  color: #94a3b8;
+
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+  white-space: nowrap;
+
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.recovery-mode-btn:hover {
+  color: #e2e8f0;
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.recovery-mode-btn:active {
+  transform: scale(0.98);
+}
+
+/* Trip Recovery active */
+.recovery-mode-btn.active {
+  color: #ffffff;
+
+  background: linear-gradient(
+    135deg,
+    #2563eb 0%,
+    #4f46e5 100%
+  );
+
+  border-color: rgba(96, 165, 250, 0.7);
+
+  box-shadow:
+    0 4px 14px rgba(37, 99, 235, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.recovery-mode-btn.active:hover {
+  background: linear-gradient(
+    135deg,
+    #3b82f6 0%,
+    #6366f1 100%
+  );
+
+  box-shadow:
+    0 6px 18px rgba(59, 130, 246, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+/* Icon */
+.recovery-mode-btn svg {
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.recovery-mode-btn:hover svg {
+  transform: translateY(-1px);
+}
+
+/* Monthly mode gets a purple AI glow when active */
+.recovery-mode-btn.active:nth-child(2) {
+  background: linear-gradient(
+    135deg,
+    #2563eb 0%,
+    #7c3aed 100%
+  );
+
+  border-color: rgba(139, 92, 246, 0.75);
+
+  box-shadow:
+    0 4px 18px rgba(124, 58, 237, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.recovery-mode-btn.active:nth-child(2):hover {
+  background: linear-gradient(
+    135deg,
+    #3b82f6 0%,
+    #8b5cf6 100%
+  );
+
+  box-shadow:
+    0 6px 22px rgba(139, 92, 246, 0.48),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+/* ============================================================
+   AI RECOVERY HEADER ACTIONS
+   ============================================================ */
+
+.ai-recovery-page .header-button-group,
+.header-button-group:has(.recovery-mode-toggle) {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Reset button if present */
+.recovery-mode-toggle + .btn {
+  min-height: 42px;
+}
+
+/* ============================================================
+   MOBILE
+   ============================================================ */
+
+@media (max-width: 768px) {
+  .recovery-mode-toggle {
+    width: 100%;
+  }
+
+  .recovery-mode-btn {
+    flex: 1;
+    min-width: 0;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+}
+
+/* ==========================================================================
+   BUDGET HEALTH ALERT SYSTEM
+   ========================================================================== */
+
+/* ------------------------------------------
+   MODERATE: 70% - 80%
+   ------------------------------------------ */
+
+.metrics-grid.budget-health-moderate
+  .metric-card:last-child {
+  border-color: rgba(245, 158, 11, 0.45);
+}
+
+.metrics-grid.budget-health-moderate
+  .metric-card:last-child
+  .metric-value {
+  color: #f59e0b;
+}
+
+
+/* ------------------------------------------
+   WARNING: ABOVE 80%
+   ------------------------------------------ */
+
+.metrics-grid.budget-health-warning
+  .metric-card:last-child {
+  position: relative;
+  border-color: rgba(245, 158, 11, 0.85);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(245, 158, 11, 0.12),
+      var(--bg-card) 65%
+    );
+  box-shadow:
+    0 0 0 1px rgba(245, 158, 11, 0.18),
+    0 0 24px rgba(245, 158, 11, 0.16);
+  transform: scale(1.025);
+  z-index: 2;
+}
+
+.metrics-grid.budget-health-warning
+  .metric-card:last-child:hover {
+  transform: scale(1.04) translateY(-2px);
+}
+
+.metrics-grid.budget-health-warning
+  .metric-card:last-child
+  .metric-value {
+  color: #f59e0b;
+  font-size: 30px;
+}
+
+.metrics-grid.budget-health-warning
+  .metric-card:last-child
+  .metric-icon-badge {
+  color: #f59e0b;
+}
+
+.metrics-grid.budget-health-warning
+  .metric-card:last-child
+  .metric-trend {
+  color: #f59e0b;
+}
+
+
+/* ------------------------------------------
+   OVER BUDGET: ABOVE 100%
+   ------------------------------------------ */
+
+.metrics-grid.budget-health-over-budget
+  .metric-card:last-child,
+.metrics-grid.budget-health-critical
+  .metric-card:last-child {
+  position: relative;
+  border-color: rgba(244, 63, 94, 0.95);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(244, 63, 94, 0.16),
+      var(--bg-card) 65%
+    );
+  box-shadow:
+    0 0 0 1px rgba(244, 63, 94, 0.22),
+    0 0 28px rgba(244, 63, 94, 0.22);
+  transform: scale(1.035);
+  z-index: 3;
+}
+
+.metrics-grid.budget-health-over-budget
+  .metric-card:last-child
+  .metric-value,
+.metrics-grid.budget-health-critical
+  .metric-card:last-child
+  .metric-value {
+  color: #f43f5e;
+  font-size: 31px;
+  font-weight: 900;
+}
+
+.metrics-grid.budget-health-over-budget
+  .metric-card:last-child
+  .metric-icon-badge,
+.metrics-grid.budget-health-critical
+  .metric-card:last-child
+  .metric-icon-badge {
+  color: #f43f5e;
+}
+
+.metrics-grid.budget-health-over-budget
+  .metric-card:last-child
+  .metric-trend,
+.metrics-grid.budget-health-critical
+  .metric-card:last-child
+  .metric-trend {
+  color: #f43f5e;
+}
+
+
+/* ------------------------------------------
+   CRITICAL: ABOVE 120%
+   ------------------------------------------ */
+
+.metrics-grid.budget-health-critical
+  .metric-card:last-child {
+  animation: budget-critical-pulse 1.8s
+    ease-in-out infinite;
+}
+
+.metrics-grid.budget-health-critical
+  .metric-card:last-child::after {
+  content: '!';
+  position: absolute;
+  top: 12px;
+  right: 12px;
+
+  width: 24px;
+  height: 24px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background: #f43f5e;
+  color: white;
+
+  font-size: 14px;
+  font-weight: 900;
+
+  box-shadow:
+    0 0 12px rgba(244, 63, 94, 0.55);
+}
+
+@keyframes budget-critical-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(244, 63, 94, 0.22),
+      0 0 22px rgba(244, 63, 94, 0.18);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 2px rgba(244, 63, 94, 0.35),
+      0 0 34px rgba(244, 63, 94, 0.32);
+  }
+}
+
+
+/* ------------------------------------------
+   MOBILE
+   ------------------------------------------ */
+
+@media (max-width: 768px) {
+  .metrics-grid.budget-health-warning
+    .metric-card:last-child,
+  .metrics-grid.budget-health-over-budget
+    .metric-card:last-child,
+  .metrics-grid.budget-health-critical
+    .metric-card:last-child {
+    transform: none;
+  }
+}

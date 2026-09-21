@@ -315,7 +315,10 @@ export const ExpensesPage = () => {
                           type="button"
                           className="table-action-btn"
                           title="Edit transaction"
-                          onClick={() => setEditingExpense(item)}
+                          onClick={() => {
+  setEditingExpense(item);
+  setIsAddExpenseModalOpen(true);
+}}
                         >
                           <Edit2 size={14} />
                         </button>

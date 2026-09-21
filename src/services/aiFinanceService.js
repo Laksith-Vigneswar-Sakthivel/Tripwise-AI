@@ -264,7 +264,11 @@ export const generateRecoveryPlan = (tripBudget = 12000, projectedSpend = 13750,
       projectedSpend,
       recoveryCuts: [],
       newProjectedSpend: projectedSpend,
-      summary: 'Projected spending is within your budget. No recovery adjustments needed.',
+      summary: `TripWise AI detected ₹${overspendAmount.toLocaleString(
+  'en-IN'
+)} in projected overspending. The recovery plan reallocates spending across flexible categories while protecting essential expenses. Applying these reductions brings projected spending back to the ₹${tripBudget.toLocaleString(
+  'en-IN'
+)} budget target.`,
     };
   }
 
