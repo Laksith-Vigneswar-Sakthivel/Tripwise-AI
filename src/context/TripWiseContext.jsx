@@ -1,5 +1,12 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+} from 'react';
+
 import { generateClient } from 'aws-amplify/data';
+import { fetchUserAttributes } from 'aws-amplify/auth';
 
 import {
   INITIAL_USER,
@@ -22,114 +29,278 @@ const STORAGE_KEYS = {
   THEME: 'tripwise_theme_v2',
 };
 
-export const TripWiseProvider = ({ children }) => {
+// =========================================================
+// PROVIDER
+// =========================================================
+
+export const TripWiseProvider = ({
+  children,
+  authUser,
+}) => {
   // =========================================================
-  // 1. USER & SETTINGS
+  // USER
   // =========================================================
 
   const [user, setUser] = useState(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEYS.USER);
-      return saved ? JSON.parse(saved) : INITIAL_USER;
+      const saved = localStorage.getItem(
+        STORAGE_KEYS.USER
+      );
+
+      return saved
+        ? JSON.parse(saved)
+        : INITIAL_USER;
     } catch {
       return INITIAL_USER;
     }
   });
 
   // =========================================================
-  // 2. THEME
+  // SYNC COGNITO PROFILE
   // =========================================================
 
-  const [darkMode, setDarkMode] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.THEME);
-      return saved ? JSON.parse(saved) : true;
-    } catch {
-      return true;
-    }
-  });
+  useEffect(() => {
+    if (!authUser) return;
+
+    let cancelled = false;
+
+    const loadCognitoProfile = async () => {
+      try {
+        const attributes =
+          await fetchUserAttributes();
+
+        if (cancelled) return;
+
+        const givenName =
+          attributes?.given_name?.trim() || '';
+
+        const familyName =
+          attributes?.family_name?.trim() || '';
+
+        const fullName =
+          attributes?.name?.trim() || '';
+
+        const email =
+          attributes?.email?.trim() || '';
+
+        let displayName = '';
+
+        // 1. Cognito full name
+        if (fullName) {
+          displayName = fullName;
+        }
+
+        // 2. First + last name
+        else if (
+          givenName ||
+          familyName
+        ) {
+          displayName = [
+            givenName,
+            familyName,
+          ]
+            .filter(Boolean)
+            .join(' ');
+        }
+
+        // 3. Email username
+        else if (email) {
+          displayName = email
+            .split('@')[0]
+            .replace(/[._-]+/g, ' ')
+            .replace(/\b\w/g, (char) =>
+              char.toUpperCase()
+            );
+        }
+
+        // 4. Safe fallback
+        else {
+          displayName = 'User';
+        }
+
+        setUser((prev) => ({
+          ...prev,
+          name: displayName,
+          email:
+            email ||
+            prev.email ||
+            '',
+        }));
+      } catch (error) {
+        console.error(
+          'Failed to load Cognito profile:',
+          error
+        );
+
+        if (cancelled) return;
+
+        // IMPORTANT:
+        // Never display the Cognito UUID.
+        setUser((prev) => ({
+          ...prev,
+          name:
+            prev.name &&
+            prev.name !== 'Laksith'
+              ? prev.name
+              : 'User',
+        }));
+      }
+    };
+
+    loadCognitoProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authUser]);
 
   // =========================================================
-  // 3. NAVIGATION
+  // THEME
   // =========================================================
 
-  const [activePage, setActivePage] = useState('Overview');
+  const [darkMode, setDarkMode] =
+    useState(() => {
+      try {
+        const saved =
+          localStorage.getItem(
+            STORAGE_KEYS.THEME
+          );
+
+        return saved
+          ? JSON.parse(saved)
+          : true;
+      } catch {
+        return true;
+      }
+    });
 
   // =========================================================
-  // 4. EXPENSES
+  // NAVIGATION
   // =========================================================
 
-  const [expenses, setExpenses] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.EXPENSES);
-      return saved ? JSON.parse(saved) : INITIAL_EXPENSES;
-    } catch {
-      return INITIAL_EXPENSES;
-    }
-  });
+  const [activePage, setActivePage] =
+    useState('Overview');
 
   // =========================================================
-  // 5. TRIPS
+  // EXPENSES
   // =========================================================
 
-  const [trips, setTrips] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.TRIPS);
-      return saved ? JSON.parse(saved) : INITIAL_TRIPS;
-    } catch {
-      return INITIAL_TRIPS;
-    }
-  });
+  const [expenses, setExpenses] =
+    useState(() => {
+      try {
+        const saved =
+          localStorage.getItem(
+            STORAGE_KEYS.EXPENSES
+          );
+
+        return saved
+          ? JSON.parse(saved)
+          : INITIAL_EXPENSES;
+      } catch {
+        return INITIAL_EXPENSES;
+      }
+    });
 
   // =========================================================
-  // 6. ACTIVE TRIP
+  // TRIPS
   // =========================================================
 
-  const [activeTripId, setActiveTripId] = useState('trip-goa-2026');
+  const [trips, setTrips] =
+    useState(() => {
+      try {
+        const saved =
+          localStorage.getItem(
+            STORAGE_KEYS.TRIPS
+          );
+
+        return saved
+          ? JSON.parse(saved)
+          : INITIAL_TRIPS;
+      } catch {
+        return INITIAL_TRIPS;
+      }
+    });
 
   // =========================================================
-  // 7. TRIP EXPENSES
+  // ACTIVE TRIP
   // =========================================================
 
-  const [tripExpenses, setTripExpenses] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.TRIP_EXPENSES);
-      return saved ? JSON.parse(saved) : INITIAL_TRIP_EXPENSES;
-    } catch {
-      return INITIAL_TRIP_EXPENSES;
-    }
-  });
+  const [activeTripId, setActiveTripId] =
+    useState('trip-goa-2026');
 
   // =========================================================
-  // 8. NOTIFICATIONS
+  // TRIP EXPENSES
   // =========================================================
 
-  const [notifications, setNotifications] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
-      return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
-    } catch {
-      return INITIAL_NOTIFICATIONS;
-    }
-  });
+  const [tripExpenses, setTripExpenses] =
+    useState(() => {
+      try {
+        const saved =
+          localStorage.getItem(
+            STORAGE_KEYS.TRIP_EXPENSES
+          );
+
+        return saved
+          ? JSON.parse(saved)
+          : INITIAL_TRIP_EXPENSES;
+      } catch {
+        return INITIAL_TRIP_EXPENSES;
+      }
+    });
 
   // =========================================================
-  // 9. MODALS & DRAWER
+  // NOTIFICATIONS
   // =========================================================
 
-  const [isAddExpenseModalOpen, setIsAddExpenseModalOpen] = useState(false);
-  const [isQuickSearchOpen, setIsQuickSearchOpen] = useState(false);
-  const [editingExpense, setEditingExpense] = useState(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [notifications, setNotifications] =
+    useState(() => {
+      try {
+        const saved =
+          localStorage.getItem(
+            STORAGE_KEYS.NOTIFICATIONS
+          );
+
+        return saved
+          ? JSON.parse(saved)
+          : INITIAL_NOTIFICATIONS;
+      } catch {
+        return INITIAL_NOTIFICATIONS;
+      }
+    });
 
   // =========================================================
-  // 10. TOASTS
+  // MODALS / DRAWER
   // =========================================================
 
-  const [toasts, setToasts] = useState([]);
+  const [
+    isAddExpenseModalOpen,
+    setIsAddExpenseModalOpen,
+  ] = useState(false);
+
+  const [
+    isQuickSearchOpen,
+    setIsQuickSearchOpen,
+  ] = useState(false);
+
+  const [
+    editingExpense,
+    setEditingExpense,
+  ] = useState(null);
+
+  const [
+    mobileMenuOpen,
+    setMobileMenuOpen,
+  ] = useState(false);
 
   // =========================================================
-  // LOCAL STORAGE SYNC
+  // TOASTS
+  // =========================================================
+
+  const [toasts, setToasts] =
+    useState([]);
+
+  // =========================================================
+  // LOCAL STORAGE
   // =========================================================
 
   useEffect(() => {
@@ -149,11 +320,21 @@ export const TripWiseProvider = ({ children }) => {
       );
 
       if (darkMode) {
-        document.documentElement.classList.add('dark');
-        document.documentElement.classList.remove('light');
+        document.documentElement.classList.add(
+          'dark'
+        );
+
+        document.documentElement.classList.remove(
+          'light'
+        );
       } else {
-        document.documentElement.classList.add('light');
-        document.documentElement.classList.remove('dark');
+        document.documentElement.classList.add(
+          'light'
+        );
+
+        document.documentElement.classList.remove(
+          'dark'
+        );
       }
     } catch {}
   }, [darkMode]);
@@ -180,7 +361,9 @@ export const TripWiseProvider = ({ children }) => {
     try {
       localStorage.setItem(
         STORAGE_KEYS.TRIP_EXPENSES,
-        JSON.stringify(tripExpenses)
+        JSON.stringify(
+          tripExpenses
+        )
       );
     } catch {}
   }, [tripExpenses]);
@@ -189,13 +372,15 @@ export const TripWiseProvider = ({ children }) => {
     try {
       localStorage.setItem(
         STORAGE_KEYS.NOTIFICATIONS,
-        JSON.stringify(notifications)
+        JSON.stringify(
+          notifications
+        )
       );
     } catch {}
   }, [notifications]);
 
   // =========================================================
-  // TOAST HELPERS
+  // TOAST
   // =========================================================
 
   const addToast = ({
@@ -203,9 +388,10 @@ export const TripWiseProvider = ({ children }) => {
     message,
     type = 'info',
   }) => {
-    const id = `toast-${Date.now()}-${Math.random()
-      .toString(36)
-      .substr(2, 4)}`;
+    const id =
+      `toast-${Date.now()}-${Math.random()
+        .toString(36)
+        .substr(2, 4)}`;
 
     setToasts((prev) => [
       ...prev,
@@ -219,14 +405,20 @@ export const TripWiseProvider = ({ children }) => {
 
     setTimeout(() => {
       setToasts((prev) =>
-        prev.filter((t) => t.id !== id)
+        prev.filter(
+          (toast) =>
+            toast.id !== id
+        )
       );
     }, 4500);
   };
 
   const removeToast = (id) => {
     setToasts((prev) =>
-      prev.filter((t) => t.id !== id)
+      prev.filter(
+        (toast) =>
+          toast.id !== id
+      )
     );
   };
 
@@ -234,7 +426,9 @@ export const TripWiseProvider = ({ children }) => {
   // USER ACTIONS
   // =========================================================
 
-  const updateUser = (updates) => {
+  const updateUser = (
+    updates
+  ) => {
     setUser((prev) => ({
       ...prev,
       ...updates,
@@ -249,55 +443,78 @@ export const TripWiseProvider = ({ children }) => {
   };
 
   const toggleTheme = () => {
-    setDarkMode((prev) => !prev);
+    setDarkMode(
+      (prev) => !prev
+    );
   };
 
   // =========================================================
-  // EXPENSE CRUD
+  // ADD EXPENSE
   // =========================================================
 
-  const addExpense = async (expenseData) => {
+  const addExpense = async (
+    expenseData
+  ) => {
     const newExpense = {
       id: `exp-${Date.now()}`,
+
       merchant:
-        expenseData.merchant || 'General Expense',
-      amount: Number(expenseData.amount) || 0,
+        expenseData.merchant ||
+        'General Expense',
+
+      amount:
+        Number(
+          expenseData.amount
+        ) || 0,
+
       category:
-        expenseData.category || 'Food',
+        expenseData.category ||
+        'Food',
+
       date:
         expenseData.date ||
-        new Date().toISOString().split('T')[0],
+        new Date()
+          .toISOString()
+          .split('T')[0],
+
       paymentMethod:
-        expenseData.paymentMethod || 'UPI',
+        expenseData.paymentMethod ||
+        'UPI',
+
       notes:
         expenseData.notes || '',
     };
-
-    // ---------------------------------------------------------
-    // LOCAL STATE
-    // ---------------------------------------------------------
 
     setExpenses((prev) => [
       newExpense,
       ...prev,
     ]);
 
-    // ---------------------------------------------------------
-    // AWS EXPENSE
-    // ---------------------------------------------------------
-
     try {
-      const { data, errors } =
-        await client.models.Expense.create({
-          category: newExpense.category,
-          amount: newExpense.amount,
-          description:
-            newExpense.notes ||
-            newExpense.merchant,
-          date: newExpense.date,
-          tripId:
-            expenseData.tripId || null,
-        });
+      const {
+        data,
+        errors,
+      } =
+        await client.models.Expense.create(
+          {
+            category:
+              newExpense.category,
+
+            amount:
+              newExpense.amount,
+
+            description:
+              newExpense.notes ||
+              newExpense.merchant,
+
+            date:
+              newExpense.date,
+
+            tripId:
+              expenseData.tripId ||
+              null,
+          }
+        );
 
       if (errors?.length) {
         console.error(
@@ -317,35 +534,45 @@ export const TripWiseProvider = ({ children }) => {
       );
     }
 
-    // ---------------------------------------------------------
-    // TRIP LEDGER
-    // ---------------------------------------------------------
-
     if (expenseData.tripId) {
       await addTripExpense(
         expenseData.tripId,
         {
-          merchant: newExpense.merchant,
-          amount: newExpense.amount,
+          merchant:
+            newExpense.merchant,
+
+          amount:
+            newExpense.amount,
+
           category:
-            newExpense.category === 'Food'
+            newExpense.category ===
+            'Food'
               ? 'Food'
-              : newExpense.category === 'Transport'
+              : newExpense.category ===
+                'Transport'
               ? 'Transport'
               : 'Shopping',
-          date: newExpense.date,
-          notes: newExpense.notes,
+
+          date:
+            newExpense.date,
+
+          notes:
+            newExpense.notes,
         }
       );
     }
 
     addToast({
       title: 'Expense Added',
+
       message: `Logged ${
-        user.currency === 'INR' ? '₹' : '$'
+        user.currency === 'INR'
+          ? '₹'
+          : '$'
       }${newExpense.amount} for ${
         newExpense.merchant
       }.`,
+
       type: 'success',
     });
   };
@@ -359,22 +586,24 @@ export const TripWiseProvider = ({ children }) => {
     updatedData
   ) => {
     setExpenses((prev) =>
-      prev.map((e) =>
-        e.id === id
+      prev.map((expense) =>
+        expense.id === id
           ? {
-              ...e,
+              ...expense,
               ...updatedData,
               amount: Number(
                 updatedData.amount
               ),
             }
-          : e
+          : expense
       )
     );
 
     addToast({
       title: 'Expense Updated',
+
       message: `Changes saved for ${updatedData.merchant}.`,
+
       type: 'info',
     });
   };
@@ -383,15 +612,22 @@ export const TripWiseProvider = ({ children }) => {
   // DELETE EXPENSE
   // =========================================================
 
-  const deleteExpense = (id) => {
+  const deleteExpense = (
+    id
+  ) => {
     setExpenses((prev) =>
-      prev.filter((e) => e.id !== id)
+      prev.filter(
+        (expense) =>
+          expense.id !== id
+      )
     );
 
     addToast({
       title: 'Expense Removed',
+
       message:
         'The transaction has been deleted.',
+
       type: 'info',
     });
   };
@@ -409,78 +645,114 @@ export const TripWiseProvider = ({ children }) => {
     ]);
 
     addToast({
-      title: 'CSV Import Complete',
+      title:
+        'CSV Import Complete',
+
       message: `Successfully imported ${importedList.length} expenses into your ledger.`,
+
       type: 'success',
     });
   };
 
   // =========================================================
-  // TRIP ACTIONS
+  // ADD TRIP
   // =========================================================
 
-  const addTrip = async (tripData) => {
+  const addTrip = async (
+    tripData
+  ) => {
     const newTrip = {
       id: `trip-${Date.now()}`,
+
       destination:
         tripData.destination ||
         'New Destination',
+
       title:
         tripData.title ||
         `${tripData.destination} Trip`,
+
       days:
-        Number(tripData.days) || 3,
+        Number(
+          tripData.days
+        ) || 3,
+
       nights: Math.max(
         1,
-        (Number(tripData.days) || 3) - 1
+        (Number(
+          tripData.days
+        ) || 3) - 1
       ),
+
       dates:
         tripData.dates ||
         'Upcoming 2026',
+
       monthYear:
         tripData.monthYear ||
         '2026',
+
       travelers:
-        Number(tripData.travelers) || 1,
+        Number(
+          tripData.travelers
+        ) || 1,
+
       budget:
-        Number(tripData.budget) || 10000,
+        Number(
+          tripData.budget
+        ) || 10000,
+
       spent: 0,
+
       status: 'Upcoming',
+
       daysElapsed: 0,
+
       image:
         tripData.image ||
         'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80',
+
       coverImage:
         tripData.image ||
         'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80',
+
       travelStyle:
         tripData.travelStyle ||
         'Moderate',
+
       categoryAllocations:
         tripData.categoryAllocations ||
         {},
+
       recoveryApplied: false,
     };
 
-    // ---------------------------------------------------------
-    // AWS TRIP
-    // ---------------------------------------------------------
-
     try {
-      const { data, errors } =
-        await client.models.Trip.create({
-          title: newTrip.title,
-          destination:
-            newTrip.destination,
-          startDate:
-            newTrip.dates,
-          endDate:
-            newTrip.dates,
-          budget:
-            newTrip.budget,
-          status:
-            newTrip.status,
-        });
+      const {
+        data,
+        errors,
+      } =
+        await client.models.Trip.create(
+          {
+            title:
+              newTrip.title,
+
+            destination:
+              newTrip.destination,
+
+            startDate:
+              newTrip.dates,
+
+            endDate:
+              newTrip.dates,
+
+            budget:
+              newTrip.budget,
+
+            status:
+              newTrip.status,
+          }
+        );
 
       if (errors?.length) {
         console.error(
@@ -500,10 +772,6 @@ export const TripWiseProvider = ({ children }) => {
       );
     }
 
-    // ---------------------------------------------------------
-    // LOCAL STATE
-    // ---------------------------------------------------------
-
     setTrips((prev) => [
       newTrip,
       ...prev,
@@ -514,21 +782,25 @@ export const TripWiseProvider = ({ children }) => {
       [newTrip.id]: [],
     }));
 
-    setActiveTripId(newTrip.id);
+    setActiveTripId(
+      newTrip.id
+    );
 
     addToast({
       title: 'Trip Created',
+
       message: `Planned ${
         newTrip.destination
       } with a budget of ₹${newTrip.budget.toLocaleString(
         'en-IN'
       )}.`,
+
       type: 'success',
     });
   };
 
   // =========================================================
-  // TRIP EXPENSE
+  // ADD TRIP EXPENSE
   // =========================================================
 
   const addTripExpense = async (
@@ -537,23 +809,29 @@ export const TripWiseProvider = ({ children }) => {
   ) => {
     const newEntry = {
       id: `te-${Date.now()}`,
+
       merchant:
         expenseData.merchant ||
         'Trip Expense',
+
       amount:
-        Number(expenseData.amount) || 0,
+        Number(
+          expenseData.amount
+        ) || 0,
+
       category:
-        expenseData.category || 'Food',
+        expenseData.category ||
+        'Food',
+
       date:
         expenseData.date ||
-        new Date().toISOString().split('T')[0],
+        new Date()
+          .toISOString()
+          .split('T')[0],
+
       notes:
         expenseData.notes || '',
     };
-
-    // ---------------------------------------------------------
-    // LOCAL TRIP EXPENSE
-    // ---------------------------------------------------------
 
     setTripExpenses((prev) => {
       const current =
@@ -561,6 +839,7 @@ export const TripWiseProvider = ({ children }) => {
 
       return {
         ...prev,
+
         [tripId]: [
           newEntry,
           ...current,
@@ -568,24 +847,29 @@ export const TripWiseProvider = ({ children }) => {
       };
     });
 
-    // ---------------------------------------------------------
-    // AWS TRIP EXPENSE
-    // ---------------------------------------------------------
-
     try {
-      const { data, errors } =
-        await client.models.TripExpense.create({
-          tripId,
-          category:
-            newEntry.category,
-          amount:
-            newEntry.amount,
-          description:
-            newEntry.notes ||
-            newEntry.merchant,
-          date:
-            newEntry.date,
-        });
+      const {
+        data,
+        errors,
+      } =
+        await client.models.TripExpense.create(
+          {
+            tripId,
+
+            category:
+              newEntry.category,
+
+            amount:
+              newEntry.amount,
+
+            description:
+              newEntry.notes ||
+              newEntry.merchant,
+
+            date:
+              newEntry.date,
+          }
+        );
 
       if (errors?.length) {
         console.error(
@@ -605,30 +889,32 @@ export const TripWiseProvider = ({ children }) => {
       );
     }
 
-    // ---------------------------------------------------------
-    // UPDATE TRIP SPENT
-    // ---------------------------------------------------------
-
     setTrips((prev) =>
-      prev.map((t) => {
-        if (t.id === tripId) {
-          const newSpent =
-            (Number(t.spent) || 0) +
-            newEntry.amount;
-
+      prev.map((trip) => {
+        if (
+          trip.id === tripId
+        ) {
           return {
-            ...t,
-            spent: newSpent,
+            ...trip,
+
+            spent:
+              (Number(
+                trip.spent
+              ) || 0) +
+              newEntry.amount,
           };
         }
 
-        return t;
+        return trip;
       })
     );
 
     addToast({
-      title: 'Trip Expense Logged',
+      title:
+        'Trip Expense Logged',
+
       message: `Added ₹${newEntry.amount} to trip ledger.`,
+
       type: 'success',
     });
   };
@@ -642,10 +928,15 @@ export const TripWiseProvider = ({ children }) => {
     expenseId
   ) => {
     const target =
-      (tripExpenses[tripId] || [])
-        .find(
-          (e) => e.id === expenseId
-        );
+      (
+        tripExpenses[
+          tripId
+        ] || []
+      ).find(
+        (expense) =>
+          expense.id ===
+          expenseId
+      );
 
     const amountToDeduct =
       target
@@ -654,34 +945,45 @@ export const TripWiseProvider = ({ children }) => {
 
     setTripExpenses((prev) => ({
       ...prev,
+
       [tripId]:
-        (prev[tripId] || []).filter(
-          (e) =>
-            e.id !== expenseId
+        (
+          prev[tripId] || []
+        ).filter(
+          (expense) =>
+            expense.id !==
+            expenseId
         ),
     }));
 
     setTrips((prev) =>
-      prev.map((t) => {
-        if (t.id === tripId) {
+      prev.map((trip) => {
+        if (
+          trip.id === tripId
+        ) {
           return {
-            ...t,
+            ...trip,
+
             spent: Math.max(
               0,
-              (Number(t.spent) || 0) -
+              (Number(
+                trip.spent
+              ) || 0) -
                 amountToDeduct
             ),
           };
         }
 
-        return t;
+        return trip;
       })
     );
 
     addToast({
       title: 'Expense Deleted',
+
       message:
         'Trip expense was removed.',
+
       type: 'info',
     });
   };
@@ -695,28 +997,36 @@ export const TripWiseProvider = ({ children }) => {
     recoveryPlan
   ) => {
     setTrips((prev) =>
-      prev.map((t) => {
-        if (t.id === tripId) {
+      prev.map((trip) => {
+        if (
+          trip.id === tripId
+        ) {
           return {
-            ...t,
+            ...trip,
+
             projectedSpendOverride:
               recoveryPlan.newProjectedSpend,
-            recoveryApplied: true,
+
+            recoveryApplied:
+              true,
+
             recoveryDetails:
               recoveryPlan,
           };
         }
 
-        return t;
+        return trip;
       })
     );
 
     addToast({
       title:
         'AI Recovery Applied! 🚀',
+
       message: `Projected spend rebalanced to ₹${recoveryPlan.newProjectedSpend.toLocaleString(
         'en-IN'
       )}. Budget protected!`,
+
       type: 'success',
     });
   };
@@ -729,25 +1039,34 @@ export const TripWiseProvider = ({ children }) => {
     tripId
   ) => {
     setTrips((prev) =>
-      prev.map((t) => {
-        if (t.id === tripId) {
+      prev.map((trip) => {
+        if (
+          trip.id === tripId
+        ) {
           return {
-            ...t,
+            ...trip,
+
             projectedSpendOverride:
               13750,
-            recoveryApplied: false,
-            recoveryDetails: null,
+
+            recoveryApplied:
+              false,
+
+            recoveryDetails:
+              null,
           };
         }
 
-        return t;
+        return trip;
       })
     );
 
     addToast({
       title: 'Recovery Reset',
+
       message:
         'Reverted trip projection to unadjusted state.',
+
       type: 'info',
     });
   };
@@ -758,17 +1077,27 @@ export const TripWiseProvider = ({ children }) => {
 
   const resetDemoData = () => {
     setUser(INITIAL_USER);
-    setExpenses(INITIAL_EXPENSES);
-    setTrips(INITIAL_TRIPS);
+
+    setExpenses(
+      INITIAL_EXPENSES
+    );
+
+    setTrips(
+      INITIAL_TRIPS
+    );
+
     setTripExpenses(
       INITIAL_TRIP_EXPENSES
     );
+
     setNotifications(
       INITIAL_NOTIFICATIONS
     );
+
     setActiveTripId(
       'trip-goa-2026'
     );
+
     setDarkMode(true);
 
     localStorage.clear();
@@ -776,14 +1105,16 @@ export const TripWiseProvider = ({ children }) => {
     addToast({
       title:
         'Demo Data Restored',
+
       message:
         'All balances, trips, and demo state have been reset.',
+
       type: 'info',
     });
   };
 
   // =========================================================
-  // CONTEXT VALUE
+  // PROVIDER
   // =========================================================
 
   return (
@@ -836,7 +1167,6 @@ export const TripWiseProvider = ({ children }) => {
 
         resetDemoData,
 
-        // AWS client
         awsClient: client,
       }}
     >
@@ -851,7 +1181,9 @@ export const TripWiseProvider = ({ children }) => {
 
 export const useTripWise = () => {
   const context =
-    useContext(TripWiseContext);
+    useContext(
+      TripWiseContext
+    );
 
   if (!context) {
     throw new Error(

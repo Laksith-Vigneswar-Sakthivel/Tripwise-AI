@@ -1,14 +1,12 @@
 import React from 'react';
+
 import { Authenticator } from '@aws-amplify/ui-react';
 import '@aws-amplify/ui-react/styles.css';
 
-import { TripWiseProvider, useTripWise } from './context/TripWiseContext';
-import { Sidebar } from './components/layout/Sidebar';
-import { TopBar } from './components/layout/TopBar';
-import { AddExpenseModal } from './components/modals/AddExpenseModal';
-import { EditExpenseModal } from './components/modals/EditExpenseModal';
-import { QuickSearchModal } from './components/common/QuickSearchModal';
-import { ToastContainer } from './components/common/Toast';
+import {
+  TripWiseProvider,
+  useTripWise,
+} from './context/TripWiseContext';
 
 // Pages
 import { OverviewPage } from './pages/OverviewPage';
@@ -22,7 +20,9 @@ import { InsightsPage } from './pages/InsightsPage';
 import { SimulatorPage } from './pages/SimulatorPage';
 import { SettingsPage } from './pages/SettingsPage';
 
-import './App.css';
+// Layout
+import { Sidebar } from './components/layout/Sidebar';
+import { TopBar } from './components/layout/Topbar';
 
 const PageRenderer = () => {
   const { activePage } = useTripWise();
@@ -68,28 +68,21 @@ const MainLayout = () => {
 
   return (
     <div
-      className={`tripwise-app ${
-        darkMode ? 'dark-theme' : 'light-theme'
-      }`}
+      className={
+        darkMode
+          ? 'app-shell dark-theme'
+          : 'app-shell light-theme'
+      }
     >
       <Sidebar />
 
-      <div className="tripwise-main-wrapper">
+      <div className="app-main">
         <TopBar />
 
-        <main
-          className="tripwise-content"
-          id="main-content"
-        >
+        <main className="main-content">
           <PageRenderer />
         </main>
       </div>
-
-      {/* Global Modals & Dialogs */}
-      <AddExpenseModal />
-      <EditExpenseModal />
-      <QuickSearchModal />
-      <ToastContainer />
     </div>
   );
 };
@@ -97,8 +90,8 @@ const MainLayout = () => {
 export default function App() {
   return (
     <Authenticator>
-      {({ signOut, user }) => (
-        <TripWiseProvider>
+      {({ user }) => (
+        <TripWiseProvider authUser={user}>
           <MainLayout />
         </TripWiseProvider>
       )}

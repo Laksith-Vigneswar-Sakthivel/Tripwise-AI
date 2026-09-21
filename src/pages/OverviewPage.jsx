@@ -92,7 +92,14 @@ export const OverviewPage = () => {
     <div className="page-container">
       <PageHeader
         eyebrow="FINANCIAL OVERVIEW"
-        title={`Good morning, ${user.name || 'Laksith'}.`}
+        title={`${(() => {
+  const hour = new Date().getHours();
+
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  if (hour < 21) return 'Good evening';
+  return 'Good night';
+})()}, ${user.name || 'Laksith'}.`}
         subtitle="Here's how your money is moving this month."
         isAiPowered
         actions={
