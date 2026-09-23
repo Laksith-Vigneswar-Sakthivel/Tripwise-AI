@@ -383,6 +383,7 @@ export const TripWiseProvider = ({
 
   // =========================================================
 // AWS CLOUD SYNC
+// AWS IS THE SOURCE OF TRUTH
 // =========================================================
 
 useEffect(() => {
@@ -394,211 +395,238 @@ useEffect(() => {
     try {
       console.log('☁️ Loading TripWise data from AWS...');
 
-      // -------------------------
+      // =====================================================
       // EXPENSES
-      // -------------------------
+      // =====================================================
+
       const expenseResult =
         await client.models.Expense.list();
 
-      if (!cancelled && !expenseResult.errors?.length) {
-        const cloudExpenses = (expenseResult.data || []).map(
-          (item) => ({
-            id: item.id,
-            merchant:
-              item.description || 'Expense',
-            amount: Number(item.amount || 0),
-            category:
-              item.category || 'Other',
-            date:
-              item.date ||
-              new Date().toISOString().split('T')[0],
-            notes:
-              item.description || '',
-            tripId:
-              item.tripId || null,
-          })
-        );
-
-        if (cloudExpenses.length > 0) {
-  setExpenses((current) => {
-    const merged = [...current];
-
-    cloudExpenses.forEach((cloudExpense) => {
-      const existingIndex = merged.findIndex(
-        (localExpense) => {
-          // Same AWS record ID
-          if (
-            localExpense.id === cloudExpense.id
-          ) {
-            return true;
-          }
-
-          // Match a local copy with its AWS copy
-          return (
-            localExpense.merchant ===
-              cloudExpense.merchant &&
-            Number(localExpense.amount) ===
-              Number(cloudExpense.amount) &&
-            localExpense.category ===
-              cloudExpense.category &&
-            localExpense.date ===
-              cloudExpense.date
-          );
-        }
-      );
-
-      if (existingIndex >= 0) {
-        merged[existingIndex] = cloudExpense;
-      } else {
-        merged.unshift(cloudExpense);
-      }
-    });
-
-    // -------------------------------------------------
-    // REMOVE DUPLICATE RECORDS
-    // -------------------------------------------------
-    const seenIds = new Set();
-
-    const uniqueExpenses = merged.filter(
-      (expense) => {
-        if (!expense?.id) {
-          return true;
-        }
-
-        if (seenIds.has(expense.id)) {
-          return false;
-        }
-
-        seenIds.add(expense.id);
-        return true;
-      }
-    );
-
-    return uniqueExpenses;
-  });
-}
-      }
-
-      // -------------------------
-      // TRIPS
-      // -------------------------
-      const tripResult =
-        await client.models.Trip.list();
-
-      if (!cancelled && !tripResult.errors?.length) {
-        const cloudTrips = (tripResult.data || []).map(
-          (item) => ({
-            id: item.id,
-            title:
-              item.title || 'Trip',
-            destination:
-              item.destination || 'Unknown',
-            dates:
-              item.startDate ||
-              item.endDate ||
-              'Upcoming',
-            budget:
-              Number(item.budget || 0),
-            status:
-              item.status || 'Upcoming',
-
-            // UI fields not stored in AWS
-            days: 3,
-            nights: 2,
-            monthYear: '2026',
-            travelers: 1,
-            spent: 0,
-            daysElapsed: 0,
-            image:
-              'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80',
-            coverImage:
-              'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80',
-            travelStyle: 'Moderate',
-            categoryAllocations: {},
-            recoveryApplied: false,
-          })
-        );
-
-        if (cloudTrips.length > 0) {
-          setTrips((current) => {
-            const cloudIds = new Set(
-              cloudTrips.map((trip) => trip.id)
-            );
-
-            const localOnly = current.filter(
-              (trip) => !cloudIds.has(trip.id)
-            );
-
-            return [
-              ...cloudTrips,
-              ...localOnly,
-            ];
-          });
-        }
-      }
-
-      // -------------------------
-      // TRIP EXPENSES
-      // -------------------------
-      const tripExpenseResult =
-        await client.models.TripExpense.list();
-
       if (
         !cancelled &&
-        !tripExpenseResult.errors?.length
+        !expenseResult.errors?.length
       ) {
-        const cloudTripExpenses =
-          tripExpenseResult.data || [];
-
-        setTripExpenses((current) => {
-          const merged = {
-            ...current,
-          };
-
-          cloudTripExpenses.forEach((item) => {
-            const tripId = item.tripId;
-
-            if (!tripId) return;
-
-            const existing =
-              merged[tripId] || [];
-
-            const mappedExpense = {
+        const cloudExpenses =
+          (expenseResult.data || []).map(
+            (item) => ({
               id: item.id,
+
               merchant:
-                item.description || 'Trip Expense',
+                item.description ||
+                'Expense',
+
               amount:
                 Number(item.amount || 0),
+
               category:
-                item.category || 'Other',
+                item.category ||
+                'Other',
+
               date:
                 item.date ||
                 new Date()
                   .toISOString()
                   .split('T')[0],
+
               notes:
-                item.description || '',
-            };
+                item.description ||
+                '',
 
-            const alreadyExists =
-              existing.some(
-                (expense) =>
-                  expense.id === item.id
-              );
+              tripId:
+                item.tripId ||
+                null,
+            })
+          );
 
-            if (!alreadyExists) {
-              merged[tripId] = [
-                mappedExpense,
-                ...existing,
-              ];
-            }
-          });
+        // AWS completely replaces local expense data
+        setExpenses(cloudExpenses);
 
-          return merged;
-        });
+        console.log(
+          `☁️ Loaded ${cloudExpenses.length} expenses from AWS`
+        );
       }
 
-      console.log('☁️ TripWise AWS sync complete');
+      // =====================================================
+      // TRIPS
+      // =====================================================
+
+      const tripResult =
+        await client.models.Trip.list();
+
+      let cloudTrips = [];
+
+      if (
+        !cancelled &&
+        !tripResult.errors?.length
+      ) {
+        cloudTrips =
+          (tripResult.data || []).map(
+            (item) => ({
+              id: item.id,
+
+              title:
+                item.title ||
+                'Trip',
+
+              destination:
+                item.destination ||
+                'Unknown',
+
+              dates:
+                item.startDate ||
+                item.endDate ||
+                'Upcoming',
+
+              budget:
+                Number(item.budget || 0),
+
+              status:
+                item.status ||
+                'Upcoming',
+
+              // UI fields not stored in AWS
+              days: 3,
+              nights: 2,
+              monthYear: '2026',
+              travelers: 1,
+
+              // Will be calculated from TripExpense data
+              spent: 0,
+
+              daysElapsed: 0,
+
+              image:
+                'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80',
+
+              coverImage:
+                'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80',
+
+              travelStyle:
+                'Moderate',
+
+              categoryAllocations:
+                {},
+
+              recoveryApplied:
+                false,
+            })
+          );
+      }
+
+      // =====================================================
+      // TRIP EXPENSES
+      // =====================================================
+
+      const tripExpenseResult =
+        await client.models.TripExpense.list();
+
+      let cloudTripExpenses = [];
+
+      if (
+        !cancelled &&
+        !tripExpenseResult.errors?.length
+      ) {
+        cloudTripExpenses =
+          tripExpenseResult.data || [];
+      }
+
+      // Build Trip Expense map from AWS only
+      const syncedTripExpenses = {};
+
+      cloudTripExpenses.forEach(
+        (item) => {
+          const tripId =
+            item.tripId;
+
+          if (!tripId) return;
+
+          if (
+            !syncedTripExpenses[tripId]
+          ) {
+            syncedTripExpenses[tripId] =
+              [];
+          }
+
+          syncedTripExpenses[tripId].push({
+            id: item.id,
+
+            merchant:
+              item.description ||
+              'Trip Expense',
+
+            amount:
+              Number(item.amount || 0),
+
+            category:
+              item.category ||
+              'Other',
+
+            date:
+              item.date ||
+              new Date()
+                .toISOString()
+                .split('T')[0],
+
+            notes:
+              item.description ||
+              '',
+          });
+        }
+      );
+
+      // AWS completely replaces local Trip Expense data
+      setTripExpenses(
+        syncedTripExpenses
+      );
+
+      // =====================================================
+      // CALCULATE TRIP SPENDING FROM AWS
+      // =====================================================
+
+      const spentByTrip = {};
+
+      cloudTripExpenses.forEach(
+        (expense) => {
+          const tripId =
+            expense.tripId;
+
+          if (!tripId) return;
+
+          spentByTrip[tripId] =
+            (spentByTrip[tripId] || 0) +
+            Number(
+              expense.amount || 0
+            );
+        }
+      );
+
+      // Apply AWS trip spending
+      const finalTrips =
+        cloudTrips.map(
+          (trip) => ({
+            ...trip,
+
+            spent:
+              spentByTrip[trip.id] ||
+              0,
+          })
+        );
+
+      // AWS completely replaces local Trips
+      setTrips(finalTrips);
+
+      console.log(
+        `☁️ Loaded ${finalTrips.length} trips from AWS`
+      );
+
+      console.log(
+        `☁️ Loaded ${cloudTripExpenses.length} trip expenses from AWS`
+      );
+
+      console.log(
+        '☁️ TripWise AWS sync complete'
+      );
+
     } catch (error) {
       console.error(
         '☁️ TripWise AWS sync failed:',
