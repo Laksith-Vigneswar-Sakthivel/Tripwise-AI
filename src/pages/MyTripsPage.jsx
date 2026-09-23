@@ -13,13 +13,21 @@ import {
   CheckCircle2,
   Clock,
   ChevronRight,
+  Trash2
 } from 'lucide-react';
 
 export const MyTripsPage = () => {
-  const { trips, user, setActiveTripId, setActivePage } = useTripWise();
+  const {
+    trips,
+    user,
+    setActiveTripId,
+    setActivePage,
+    deleteTrip,
+  } = useTripWise();
 
   const handleManageTrip = (trip) => {
     setActiveTripId(trip.id);
+
     if (trip.status === 'Active') {
       setActivePage('Trip Spending');
     } else {
@@ -30,6 +38,16 @@ export const MyTripsPage = () => {
   const handleOpenRecovery = (trip) => {
     setActiveTripId(trip.id);
     setActivePage('AI Recovery');
+  };
+
+  const handleDeleteTrip = (trip) => {
+    const confirmed = window.confirm(
+      `Delete "${trip.destination}" trip and all its expenses?`
+    );
+
+    if (confirmed) {
+      deleteTrip(trip.id);
+    }
   };
 
   return (
@@ -56,7 +74,10 @@ export const MyTripsPage = () => {
           const budget = Number(trip.budget) || 12000;
           const spent = Number(trip.spent) || 0;
           const remaining = budget - spent;
-          const progress = Math.min(100, Math.round((spent / budget) * 100));
+          const progress = Math.min(
+            100,
+            Math.round((spent / budget) * 100)
+          );
 
           const hasOverspendingRisk =
             trip.projectedSpendOverride &&
@@ -64,7 +85,10 @@ export const MyTripsPage = () => {
             !trip.recoveryApplied;
 
           return (
-            <div key={trip.id} className="trip-portfolio-card">
+            <div
+              key={trip.id}
+              className="trip-portfolio-card"
+            >
               {/* Image & Header */}
               <div className="trip-portfolio-img-wrap">
                 <img
@@ -73,16 +97,33 @@ export const MyTripsPage = () => {
                   className="trip-portfolio-img"
                   loading="lazy"
                 />
+
                 <div className="trip-status-overlay">
-                  <span className={`status-pill status-${trip.status.toLowerCase()}`}>
-                    {trip.status === 'Active' && <Clock size={12} />}
-                    {trip.status === 'Upcoming' && <Calendar size={12} />}
-                    {trip.status === 'Completed' && <CheckCircle2 size={12} />}
+                  <span
+                    className={`status-pill status-${trip.status.toLowerCase()}`}
+                  >
+                    {trip.status === 'Active' && (
+                      <Clock size={12} />
+                    )}
+
+                    {trip.status === 'Upcoming' && (
+                      <Calendar size={12} />
+                    )}
+
+                    {trip.status === 'Completed' && (
+                      <CheckCircle2 size={12} />
+                    )}
+
                     <span>{trip.status}</span>
                   </span>
 
                   {hasOverspendingRisk && (
-                    <span className="risk-pill-alert" onClick={() => handleOpenRecovery(trip)}>
+                    <span
+                      className="risk-pill-alert"
+                      onClick={() =>
+                        handleOpenRecovery(trip)
+                      }
+                    >
                       <AlertTriangle size={12} />
                       <span>Over budget risk</span>
                     </span>
@@ -90,9 +131,13 @@ export const MyTripsPage = () => {
                 </div>
 
                 <div className="trip-card-bottom-bar">
-                  <h3 className="trip-dest-heading">{trip.destination}</h3>
+                  <h3 className="trip-dest-heading">
+                    {trip.destination}
+                  </h3>
+
                   <span className="trip-nights-tag">
-                    {trip.days} Days · {trip.nights || trip.days - 1} Nights
+                    {trip.days} Days ·{' '}
+                    {trip.nights || trip.days - 1} Nights
                   </span>
                 </div>
               </div>
@@ -101,45 +146,112 @@ export const MyTripsPage = () => {
               <div className="trip-portfolio-body">
                 <div className="trip-info-row">
                   <div className="info-item">
-                    <Calendar size={14} className="info-icon" />
-                    <span>{trip.dates || trip.monthYear || '2026'}</span>
+                    <Calendar
+                      size={14}
+                      className="info-icon"
+                    />
+
+                    <span>
+                      {trip.dates ||
+                        trip.monthYear ||
+                        '2026'}
+                    </span>
                   </div>
+
                   <div className="info-item">
-                    <Users size={14} className="info-icon" />
-                    <span>{trip.travelers || 1} Travelers · {trip.travelStyle || 'Moderate'}</span>
+                    <Users
+                      size={14}
+                      className="info-icon"
+                    />
+
+                    <span>
+                      {trip.travelers || 1} Travelers ·{' '}
+                      {trip.travelStyle || 'Moderate'}
+                    </span>
                   </div>
                 </div>
 
                 {/* Progress & Metrics */}
                 <div className="trip-budget-progress-section">
                   <div className="progress-labels-row">
-                    <span className="progress-lbl">Budget Spent</span>
+                    <span className="progress-lbl">
+                      Budget Spent
+                    </span>
+
                     <span className="progress-val-ratio">
-                      {formatCurrency(spent, user.currency)} / {formatCurrency(budget, user.currency)}
+                      {formatCurrency(
+                        spent,
+                        user.currency
+                      )}{' '}
+                      /{' '}
+                      {formatCurrency(
+                        budget,
+                        user.currency
+                      )}
                     </span>
                   </div>
 
                   <ProgressBar
                     percent={progress}
                     height={8}
-                    variant={hasOverspendingRisk ? 'danger' : progress > 80 ? 'warning' : 'primary'}
+                    variant={
+                      hasOverspendingRisk
+                        ? 'danger'
+                        : progress > 80
+                        ? 'warning'
+                        : 'primary'
+                    }
                   />
 
                   <div className="progress-bottom-meta">
-                    <span className="spent-pct">{progress}% utilized</span>
+                    <span className="spent-pct">
+                      {progress}% utilized
+                    </span>
+
                     <span className="remaining-tag">
-                      {remaining >= 0 ? `${formatCurrency(remaining, user.currency)} remaining` : `Exceeded by ${formatCurrency(Math.abs(remaining), user.currency)}`}
+                      {remaining >= 0
+                        ? `${formatCurrency(
+                            remaining,
+                            user.currency
+                          )} remaining`
+                        : `Exceeded by ${formatCurrency(
+                            Math.abs(remaining),
+                            user.currency
+                          )}`}
                     </span>
                   </div>
                 </div>
 
                 {/* Overspending AI Trigger Notice */}
                 {hasOverspendingRisk && (
-                  <div className="trip-recovery-inline-alert" onClick={() => handleOpenRecovery(trip)}>
+                  <div
+                    className="trip-recovery-inline-alert"
+                    onClick={() =>
+                      handleOpenRecovery(trip)
+                    }
+                  >
                     <div className="recovery-inline-left">
-                      <Sparkles size={14} className="recovery-spark" />
-                      <span>Projected: {formatCurrency(trip.projectedSpendOverride, user.currency)} (+{formatCurrency(trip.projectedSpendOverride - budget, user.currency)})</span>
+                      <Sparkles
+                        size={14}
+                        className="recovery-spark"
+                      />
+
+                      <span>
+                        Projected:{' '}
+                        {formatCurrency(
+                          trip.projectedSpendOverride,
+                          user.currency
+                        )}{' '}
+                        (+
+                        {formatCurrency(
+                          trip.projectedSpendOverride -
+                            budget,
+                          user.currency
+                        )}
+                        )
+                      </span>
                     </div>
+
                     <span className="recovery-inline-btn">
                       <span>Fix with AI</span>
                       <ChevronRight size={13} />
@@ -152,7 +264,9 @@ export const MyTripsPage = () => {
                   <button
                     type="button"
                     className="btn btn-outline btn-sm flex-1"
-                    onClick={() => handleManageTrip(trip)}
+                    onClick={() =>
+                      handleManageTrip(trip)
+                    }
                   >
                     <span>Trip Spending</span>
                     <ArrowRight size={13} />
@@ -162,12 +276,26 @@ export const MyTripsPage = () => {
                     <button
                       type="button"
                       className="btn btn-ai-recovery btn-sm"
-                      onClick={() => handleOpenRecovery(trip)}
+                      onClick={() =>
+                        handleOpenRecovery(trip)
+                      }
                     >
                       <Sparkles size={13} />
                       <span>AI Recovery</span>
                     </button>
                   )}
+
+                  {/* Delete Trip */}
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    title="Delete Trip"
+                    onClick={() =>
+                      handleDeleteTrip(trip)
+                    }
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </div>
               </div>
             </div>

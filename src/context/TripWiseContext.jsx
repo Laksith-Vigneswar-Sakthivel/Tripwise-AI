@@ -821,185 +821,277 @@ const markAllNotificationsAsRead = () => {
   // ADD EXPENSE
   // =========================================================
 
-  const addExpense = async (
-    expenseData
-  ) => {
-    const newExpense = {
-      id: `exp-${Date.now()}`,
+  const addExpense = async (expenseData) => {
+  const localId = `exp-${Date.now()}`;
 
-      merchant:
-        expenseData.merchant ||
-        'General Expense',
+  const newExpense = {
+    id: localId,
+
+    merchant:
+      expenseData.merchant ||
+      'General Expense',
+
+    amount:
+      Number(expenseData.amount) || 0,
+
+    category:
+      expenseData.category ||
+      'Food',
+
+    date:
+      expenseData.date ||
+      new Date()
+        .toISOString()
+        .split('T')[0],
+
+    paymentMethod:
+      expenseData.paymentMethod ||
+      'UPI',
+
+    notes:
+      expenseData.notes || '',
+  };
+
+  // Show immediately in the UI
+  setExpenses((prev) => [
+    newExpense,
+    ...prev,
+  ]);
+
+  try {
+    const {
+      data,
+      errors,
+    } = await client.models.Expense.create({
+      category:
+        newExpense.category,
 
       amount:
-        Number(
-          expenseData.amount
-        ) || 0,
+        newExpense.amount,
 
-      category:
-        expenseData.category ||
-        'Food',
+      description:
+        newExpense.notes ||
+        newExpense.merchant,
 
       date:
-        expenseData.date ||
-        new Date()
-          .toISOString()
-          .split('T')[0],
+        newExpense.date,
 
-      paymentMethod:
-        expenseData.paymentMethod ||
-        'UPI',
+      tripId:
+        expenseData.tripId ||
+        null,
+    });
 
-      notes:
-        expenseData.notes || '',
-    };
-
-    setExpenses((prev) => [
-      newExpense,
-      ...prev,
-    ]);
-
-    try {
-      const {
-        data,
-        errors,
-      } =
-        await client.models.Expense.create(
-          {
-            category:
-              newExpense.category,
-
-            amount:
-              newExpense.amount,
-
-            description:
-              newExpense.notes ||
-              newExpense.merchant,
-
-            date:
-              newExpense.date,
-
-            tripId:
-              expenseData.tripId ||
-              null,
-          }
-        );
-
-      if (errors?.length) {
-        console.error(
-          'AWS Expense save failed:',
-          errors
-        );
-      } else {
-        console.log(
-          '✅ Expense saved to AWS',
-          data
-        );
-      }
-    } catch (error) {
+    if (errors?.length) {
       console.error(
         'AWS Expense save failed:',
-        error
+        errors
+      );
+    } else if (data?.id) {
+      console.log(
+        '✅ Expense saved to AWS',
+        data
+      );
+
+      // IMPORTANT:
+      // Replace temporary local ID with AWS ID
+      setExpenses((prev) =>
+        prev.map((expense) =>
+          expense.id === localId
+            ? {
+                ...expense,
+                id: data.id,
+              }
+            : expense
+        )
       );
     }
+  } catch (error) {
+    console.error(
+      'AWS Expense save failed:',
+      error
+    );
+  }
 
-    if (expenseData.tripId) {
-      await addTripExpense(
-        expenseData.tripId,
-        {
-          merchant:
-            newExpense.merchant,
+  if (expenseData.tripId) {
+    await addTripExpense(
+      expenseData.tripId,
+      {
+        merchant:
+          newExpense.merchant,
 
-          amount:
-            newExpense.amount,
+        amount:
+          newExpense.amount,
 
-          category:
-            newExpense.category ===
-            'Food'
-              ? 'Food'
-              : newExpense.category ===
-                'Transport'
+        category:
+          newExpense.category === 'Food'
+            ? 'Food'
+            : newExpense.category === 'Transport'
               ? 'Transport'
               : 'Shopping',
 
-          date:
-            newExpense.date,
+        date:
+          newExpense.date,
 
-          notes:
-            newExpense.notes,
-        }
-      );
-    }
+        notes:
+          newExpense.notes,
+      }
+    );
+  }
 
-    addToast({
-      title: 'Expense Added',
+  addToast({
+    title: 'Expense Added',
 
-      message: `Logged ${
-        user.currency === 'INR'
-          ? '₹'
-          : '$'
-      }${newExpense.amount} for ${
-        newExpense.merchant
-      }.`,
+    message: `Logged ${
+      user.currency === 'INR'
+        ? '₹'
+        : '$'
+    }${newExpense.amount} for ${
+      newExpense.merchant
+    }.`,
 
-      type: 'success',
-    });
-  };
+    type: 'success',
+  });
+};
 
   // =========================================================
   // EDIT EXPENSE
   // =========================================================
 
-  const editExpense = (
-    id,
-    updatedData
-  ) => {
-    setExpenses((prev) =>
-      prev.map((expense) =>
-        expense.id === id
-          ? {
-              ...expense,
-              ...updatedData,
-              amount: Number(
-                updatedData.amount
-              ),
-            }
-          : expense
-      )
-    );
+  const editExpense = async (id, updatedData) => {
+  const existingExpense = expenses.find(
+    (expense) => expense.id === id
+  );
 
-    addToast({
-      title: 'Expense Updated',
+  if (!existingExpense) return;
 
-      message: `Changes saved for ${updatedData.merchant}.`,
-
-      type: 'info',
-    });
+  const updatedExpense = {
+    ...existingExpense,
+    ...updatedData,
+    amount: Number(updatedData.amount),
   };
+
+  // Update UI immediately
+  setExpenses((prev) =>
+    prev.map((expense) =>
+      expense.id === id
+        ? updatedExpense
+        : expense
+    )
+  );
+
+  try {
+    const {
+      data,
+      errors,
+    } = await client.models.Expense.update({
+      id,
+
+      category:
+        updatedData.category ??
+        existingExpense.category,
+
+      amount:
+        Number(
+          updatedData.amount ??
+          existingExpense.amount
+        ),
+
+      description:
+        updatedData.notes ||
+        updatedData.merchant ||
+        existingExpense.notes ||
+        existingExpense.merchant ||
+        '',
+
+      date:
+        updatedData.date ??
+        existingExpense.date,
+
+      tripId:
+        updatedData.tripId ??
+        existingExpense.tripId ??
+        null,
+    });
+
+    if (errors?.length) {
+      console.error(
+        'AWS Expense update failed:',
+        errors
+      );
+    } else {
+      console.log(
+        '✅ Expense updated in AWS',
+        data
+      );
+    }
+  } catch (error) {
+    console.error(
+      'AWS Expense update failed:',
+      error
+    );
+  }
+
+  addToast({
+    title: 'Expense Updated',
+    message: `Changes saved for ${
+      updatedData.merchant ||
+      existingExpense.merchant
+    }.`,
+    type: 'success',
+  });
+};
 
   // =========================================================
   // DELETE EXPENSE
   // =========================================================
 
-  const deleteExpense = (
-    id
-  ) => {
-    setExpenses((prev) =>
-      prev.filter(
-        (expense) =>
-          expense.id !== id
-      )
-    );
+  const deleteExpense = async (id) => {
+  const existingExpense = expenses.find(
+    (expense) => expense.id === id
+  );
 
-    addToast({
-      title: 'Expense Removed',
+  if (!existingExpense) return;
 
-      message:
-        'The transaction has been deleted.',
+  // Remove immediately from UI
+  setExpenses((prev) =>
+    prev.filter(
+      (expense) => expense.id !== id
+    )
+  );
 
-      type: 'info',
+  try {
+    const {
+      data,
+      errors,
+    } = await client.models.Expense.delete({
+      id,
     });
-  };
+
+    if (errors?.length) {
+      console.error(
+        'AWS Expense delete failed:',
+        errors
+      );
+    } else {
+      console.log(
+        '🗑️ Expense deleted from AWS',
+        data
+      );
+    }
+  } catch (error) {
+    console.error(
+      'AWS Expense delete failed:',
+      error
+    );
+  }
+
+  addToast({
+    title: 'Expense Removed',
+    message:
+      'The transaction has been deleted.',
+    type: 'info',
+  });
+};
 
   // =========================================================
   // IMPORT EXPENSES
@@ -1028,335 +1120,478 @@ const markAllNotificationsAsRead = () => {
   // =========================================================
 
   const addTrip = async (
-    tripData
-  ) => {
-    const newTrip = {
-      id: `trip-${Date.now()}`,
+  tripData
+) => {
+  const localId = `trip-${Date.now()}`;
 
-      destination:
-        tripData.destination ||
-        'New Destination',
+  const newTrip = {
+    id: localId,
 
-      title:
-        tripData.title ||
-        `${tripData.destination} Trip`,
+    destination:
+      tripData.destination ||
+      'New Destination',
 
-      days:
-        Number(
-          tripData.days
-        ) || 3,
+    title:
+      tripData.title ||
+      `${tripData.destination} Trip`,
 
-      nights: Math.max(
-        1,
-        (Number(
-          tripData.days
-        ) || 3) - 1
-      ),
+    days:
+      Number(
+        tripData.days
+      ) || 3,
 
-      dates:
-        tripData.dates ||
-        'Upcoming 2026',
+    nights: Math.max(
+      1,
+      (Number(
+        tripData.days
+      ) || 3) - 1
+    ),
 
-      monthYear:
-        tripData.monthYear ||
-        '2026',
+    dates:
+      tripData.dates ||
+      'Upcoming 2026',
 
-      travelers:
-        Number(
-          tripData.travelers
-        ) || 1,
+    monthYear:
+      tripData.monthYear ||
+      '2026',
 
-      budget:
-        Number(
-          tripData.budget
-        ) || 10000,
+    travelers:
+      Number(
+        tripData.travelers
+      ) || 1,
 
-      spent: 0,
+    budget:
+      Number(
+        tripData.budget
+      ) || 10000,
 
-      status: 'Upcoming',
+    spent: 0,
 
-      daysElapsed: 0,
+    status: 'Upcoming',
 
-      image:
-        tripData.image ||
-        'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80',
+    daysElapsed: 0,
 
-      coverImage:
-        tripData.image ||
-        'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80',
+    image:
+      tripData.image ||
+      'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80',
 
-      travelStyle:
-        tripData.travelStyle ||
-        'Moderate',
+    coverImage:
+      tripData.image ||
+      'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80',
 
-      categoryAllocations:
-        tripData.categoryAllocations ||
-        {},
+    travelStyle:
+      tripData.travelStyle ||
+      'Moderate',
 
-      recoveryApplied: false,
-    };
+    categoryAllocations:
+      tripData.categoryAllocations ||
+      {},
 
-    try {
-      const {
-        data,
-        errors,
-      } =
-        await client.models.Trip.create(
-          {
-            title:
-              newTrip.title,
+    recoveryApplied: false,
+  };
 
-            destination:
-              newTrip.destination,
+  try {
+    const {
+      data,
+      errors,
+    } =
+      await client.models.Trip.create({
+        title:
+          newTrip.title,
 
-            startDate:
-              newTrip.dates,
+        destination:
+          newTrip.destination,
 
-            endDate:
-              newTrip.dates,
+        startDate:
+          newTrip.dates,
 
-            budget:
-              newTrip.budget,
+        endDate:
+          newTrip.dates,
 
-            status:
-              newTrip.status,
-          }
-        );
+        budget:
+          newTrip.budget,
 
-      if (errors?.length) {
-        console.error(
-          'AWS Trip save failed:',
-          errors
-        );
-      } else {
-        console.log(
-          '✅ Trip saved to AWS',
-          data
-        );
-      }
-    } catch (error) {
+        status:
+          newTrip.status,
+      });
+
+    if (errors?.length) {
       console.error(
         'AWS Trip save failed:',
-        error
+        errors
       );
+    } else if (data?.id) {
+      console.log(
+        '✅ Trip saved to AWS',
+        data
+      );
+
+      // Replace temporary local ID with AWS ID
+      newTrip.id = data.id;
     }
-
-    setTrips((prev) => [
-      newTrip,
-      ...prev,
-    ]);
-
-    setTripExpenses((prev) => ({
-      ...prev,
-      [newTrip.id]: [],
-    }));
-
-    setActiveTripId(
-      newTrip.id
+  } catch (error) {
+    console.error(
+      'AWS Trip save failed:',
+      error
     );
+  }
 
-    addToast({
-      title: 'Trip Created',
+  setTrips((prev) => [
+    newTrip,
+    ...prev,
+  ]);
 
-      message: `Planned ${
-        newTrip.destination
-      } with a budget of ₹${newTrip.budget.toLocaleString(
-        'en-IN'
-      )}.`,
+  setTripExpenses((prev) => ({
+    ...prev,
+    [newTrip.id]: [],
+  }));
 
-      type: 'success',
-    });
-  };
+  setActiveTripId(
+    newTrip.id
+  );
 
-  // =========================================================
+  addToast({
+    title: 'Trip Created',
+
+    message: `Planned ${
+      newTrip.destination
+    } with a budget of ₹${newTrip.budget.toLocaleString(
+      'en-IN'
+    )}.`,
+
+    type: 'success',
+  });
+};
+// =========================================================
   // ADD TRIP EXPENSE
   // =========================================================
+const addTripExpense = async (
+  tripId,
+  expenseData
+) => {
+  const localId = `te-${Date.now()}`;
 
-  const addTripExpense = async (
-    tripId,
-    expenseData
-  ) => {
-    const newEntry = {
-      id: `te-${Date.now()}`,
+  const newEntry = {
+    id: localId,
 
-      merchant:
-        expenseData.merchant ||
-        'Trip Expense',
+    merchant:
+      expenseData.merchant ||
+      'Trip Expense',
 
-      amount:
-        Number(
-          expenseData.amount
-        ) || 0,
+    amount:
+      Number(expenseData.amount) || 0,
 
-      category:
-        expenseData.category ||
-        'Food',
+    category:
+      expenseData.category ||
+      'Food',
 
-      date:
-        expenseData.date ||
-        new Date()
-          .toISOString()
-          .split('T')[0],
+    date:
+      expenseData.date ||
+      new Date()
+        .toISOString()
+        .split('T')[0],
 
-      notes:
-        expenseData.notes || '',
+    notes:
+      expenseData.notes || '',
+  };
+
+  setTripExpenses((prev) => {
+    const current =
+      prev[tripId] || [];
+
+    return {
+      ...prev,
+
+      [tripId]: [
+        newEntry,
+        ...current,
+      ],
     };
+  });
 
-    setTripExpenses((prev) => {
-      const current =
-        prev[tripId] || [];
+  try {
+    const {
+      data,
+      errors,
+    } =
+      await client.models.TripExpense.create({
+        tripId,
 
-      return {
-        ...prev,
+        category:
+          newEntry.category,
 
-        [tripId]: [
-          newEntry,
-          ...current,
-        ],
-      };
-    });
+        amount:
+          newEntry.amount,
 
-    try {
-      const {
-        data,
-        errors,
-      } =
-        await client.models.TripExpense.create(
-          {
-            tripId,
+        description:
+          newEntry.notes ||
+          newEntry.merchant,
 
-            category:
-              newEntry.category,
+        date:
+          newEntry.date,
+      });
 
-            amount:
-              newEntry.amount,
-
-            description:
-              newEntry.notes ||
-              newEntry.merchant,
-
-            date:
-              newEntry.date,
-          }
-        );
-
-      if (errors?.length) {
-        console.error(
-          'AWS Trip Expense save failed:',
-          errors
-        );
-      } else {
-        console.log(
-          '✅ Trip expense saved to AWS',
-          data
-        );
-      }
-    } catch (error) {
+    if (errors?.length) {
       console.error(
         'AWS Trip Expense save failed:',
-        error
+        errors
+      );
+    } else if (data?.id) {
+      console.log(
+        '✅ Trip expense saved to AWS',
+        data
+      );
+
+      setTripExpenses((prev) => ({
+        ...prev,
+
+        [tripId]:
+          (prev[tripId] || []).map(
+            (expense) =>
+              expense.id === localId
+                ? {
+                    ...expense,
+                    id: data.id,
+                  }
+                : expense
+          ),
+      }));
+    }
+  } catch (error) {
+    console.error(
+      'AWS Trip Expense save failed:',
+      error
+    );
+  }
+
+  setTrips((prev) =>
+    prev.map((trip) => {
+      if (trip.id === tripId) {
+        return {
+          ...trip,
+
+          spent:
+            (Number(trip.spent) || 0) +
+            newEntry.amount,
+        };
+      }
+
+      return trip;
+    })
+  );
+
+  addToast({
+    title:
+      'Trip Expense Logged',
+
+    message:
+      `Added ₹${newEntry.amount} to trip ledger.`,
+
+    type: 'success',
+  });
+};
+
+// =========================================================
+// DELETE TRIP
+// =========================================================
+
+const deleteTrip = async (tripId) => {
+  if (!tripId) return;
+
+  try {
+    // 1. Find all expenses belonging to this trip
+    const {
+      data: tripExpenseRecords,
+      errors: listErrors,
+    } = await client.models.TripExpense.list({
+      filter: {
+        tripId: {
+          eq: tripId,
+        },
+      },
+    });
+
+    if (listErrors?.length) {
+      console.error(
+        'AWS Trip Expense lookup failed:',
+        listErrors
       );
     }
 
-    setTrips((prev) =>
-      prev.map((trip) => {
-        if (
-          trip.id === tripId
-        ) {
-          return {
-            ...trip,
+    // 2. Delete all Trip Expenses from AWS
+    if (tripExpenseRecords?.length) {
+      for (const expense of tripExpenseRecords) {
+        const { errors } =
+          await client.models.TripExpense.delete({
+            id: expense.id,
+          });
 
-            spent:
-              (Number(
-                trip.spent
-              ) || 0) +
-              newEntry.amount,
-          };
+        if (errors?.length) {
+          console.error(
+            'AWS Trip Expense delete failed:',
+            errors
+          );
         }
+      }
+    }
 
-        return trip;
-      })
+    // 3. Delete the Trip itself from AWS
+    const {
+      data,
+      errors,
+    } = await client.models.Trip.delete({
+      id: tripId,
+    });
+
+    if (errors?.length) {
+      console.error(
+        'AWS Trip delete failed:',
+        errors
+      );
+      return;
+    }
+
+    console.log(
+      '🗑️ Trip deleted from AWS',
+      data
     );
 
-    addToast({
-      title:
-        'Trip Expense Logged',
+    // 4. Remove Trip from local state
+    setTrips((prev) =>
+      prev.filter(
+        (trip) => trip.id !== tripId
+      )
+    );
 
-      message: `Added ₹${newEntry.amount} to trip ledger.`,
+    // 5. Remove its Trip Expenses locally
+    setTripExpenses((prev) => {
+      const updated = {
+        ...prev,
+      };
 
-      type: 'success',
+      delete updated[tripId];
+
+      return updated;
     });
-  };
+
+    // 6. Choose another trip if the deleted one was active
+    setActiveTripId((currentId) => {
+      if (currentId !== tripId) {
+        return currentId;
+      }
+
+      const remainingTrips =
+        trips.filter(
+          (trip) => trip.id !== tripId
+        );
+
+      return remainingTrips.length
+        ? remainingTrips[0].id
+        : null;
+    });
+
+    addToast({
+      title: 'Trip Deleted',
+      message:
+        'Trip and its expenses were removed.',
+      type: 'info',
+    });
+
+  } catch (error) {
+    console.error(
+      'AWS Trip delete failed:',
+      error
+    );
+  }
+};
+
 
   // =========================================================
   // DELETE TRIP EXPENSE
   // =========================================================
 
-  const deleteTripExpense = (
-    tripId,
-    expenseId
-  ) => {
-    const target =
-      (
-        tripExpenses[
-          tripId
-        ] || []
-      ).find(
-        (expense) =>
-          expense.id ===
-          expenseId
-      );
-
-    const amountToDeduct =
-      target
-        ? Number(target.amount)
-        : 0;
-
-    setTripExpenses((prev) => ({
-      ...prev,
-
-      [tripId]:
-        (
-          prev[tripId] || []
-        ).filter(
-          (expense) =>
-            expense.id !==
-            expenseId
-        ),
-    }));
-
-    setTrips((prev) =>
-      prev.map((trip) => {
-        if (
-          trip.id === tripId
-        ) {
-          return {
-            ...trip,
-
-            spent: Math.max(
-              0,
-              (Number(
-                trip.spent
-              ) || 0) -
-                amountToDeduct
-            ),
-          };
-        }
-
-        return trip;
-      })
+  const deleteTripExpense = async (
+  tripId,
+  expenseId
+) => {
+  const target =
+    (
+      tripExpenses[tripId] || []
+    ).find(
+      (expense) =>
+        expense.id === expenseId
     );
 
-    addToast({
-      title: 'Expense Deleted',
+  const amountToDeduct = target
+    ? Number(target.amount)
+    : 0;
 
-      message:
-        'Trip expense was removed.',
+  // Remove from UI immediately
+  setTripExpenses((prev) => ({
+    ...prev,
 
-      type: 'info',
-    });
-  };
+    [tripId]:
+      (prev[tripId] || []).filter(
+        (expense) =>
+          expense.id !== expenseId
+      ),
+  }));
 
+  // Update trip spending
+  setTrips((prev) =>
+    prev.map((trip) => {
+      if (trip.id === tripId) {
+        return {
+          ...trip,
+
+          spent: Math.max(
+            0,
+            (Number(trip.spent) || 0) -
+              amountToDeduct
+          ),
+        };
+      }
+
+      return trip;
+    })
+  );
+
+  try {
+    const {
+      data,
+      errors,
+    } =
+      await client.models.TripExpense.delete({
+        id: expenseId,
+      });
+
+    if (errors?.length) {
+      console.error(
+        'AWS Trip Expense delete failed:',
+        errors
+      );
+    } else {
+      console.log(
+        '🗑️ Trip expense deleted from AWS',
+        data
+      );
+    }
+  } catch (error) {
+    console.error(
+      'AWS Trip Expense delete failed:',
+      error
+    );
+  }
+
+  addToast({
+    title: 'Expense Deleted',
+
+    message:
+      'Trip expense was removed.',
+
+    type: 'info',
+  });
+};
   // =========================================================
 // AI RECOVERY
 // =========================================================
@@ -1825,9 +2060,10 @@ const resetDemoData = () => {
         importExpenses,
 
         trips,
-        activeTripId,
-        setActiveTripId,
-        addTrip,
+activeTripId,
+setActiveTripId,
+addTrip,
+deleteTrip,
 
         tripExpenses,
         addTripExpense,
