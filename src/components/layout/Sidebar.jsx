@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTripWise } from '../../context/TripWiseContext';
+import { signOut } from 'aws-amplify/auth';
 import {
   LayoutDashboard,
   Receipt,
@@ -12,6 +13,7 @@ import {
   Calculator,
   Settings,
   X,
+  LogOut,
   Compass as LogoIcon,
 } from 'lucide-react';
 
@@ -54,12 +56,12 @@ const NAV_GROUPS = [
 
 export const Sidebar = () => {
   const {
-    activePage,
-    setActivePage,
-    user,
-    mobileMenuOpen,
-    setMobileMenuOpen,
-  } = useTripWise();
+  activePage,
+  setActivePage,
+  user,
+  mobileMenuOpen,
+  setMobileMenuOpen,
+} = useTripWise();
 
   const handleNavClick = (pageId) => {
     setActivePage(pageId);
@@ -67,6 +69,14 @@ export const Sidebar = () => {
       setMobileMenuOpen(false);
     }
   };
+
+  const handleSignOut = async () => {
+  try {
+    await signOut();
+  } catch (error) {
+    console.error('Sign out failed:', error);
+  }
+};
 
   return (
     <>
@@ -143,15 +153,35 @@ export const Sidebar = () => {
         </nav>
 
         {/* User Profile Footer */}
-        <div className="sidebar-profile">
-          <div className="profile-avatar">
-            <span>{user.name ? user.name.charAt(0).toUpperCase() : 'L'}</span>
-          </div>
-          <div className="profile-info">
-            <span className="profile-name">{user.name || 'Laksith'}</span>
-            <span className="profile-role">{user.accountType || 'Personal account'}</span>
-          </div>
-        </div>
+<div className="sidebar-profile">
+  <div className="profile-avatar">
+    <span>
+      {user.name
+        ? user.name.charAt(0).toUpperCase()
+        : 'L'}
+    </span>
+  </div>
+
+  <div className="profile-info">
+    <span className="profile-name">
+      {user.name || 'Laksith'}
+    </span>
+
+    <span className="profile-role">
+      {user.accountType || 'Personal account'}
+    </span>
+  </div>
+
+  <button
+    type="button"
+    className="profile-logout-button"
+    onClick={handleSignOut}
+    aria-label="Sign out"
+    title="Sign out"
+  >
+    <LogOut size={17} />
+  </button>
+</div>
       </aside>
     </>
   );

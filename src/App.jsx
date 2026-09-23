@@ -26,6 +26,7 @@ import { TopBar } from './components/layout/TopBar';
 
 // Modals
 import { AddExpenseModal } from './components/modals/AddExpenseModal';
+import { QuickSearchModal } from './components/common/QuickSearchModal';
 
 const PageRenderer = () => {
   const { activePage } = useTripWise();
@@ -88,6 +89,7 @@ const MainLayout = () => {
 
         {/* Global Add Expense Modal */}
         <AddExpenseModal />
+        <QuickSearchModal />
       </div>
     </div>
   );

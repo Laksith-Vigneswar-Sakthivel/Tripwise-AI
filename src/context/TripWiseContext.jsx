@@ -17,7 +17,7 @@ import {
   INITIAL_NOTIFICATIONS,
 } from '../data/initialData';
 
-const client = generateClient();
+
 
 const TripWiseContext = createContext();
 
@@ -38,6 +38,7 @@ export const TripWiseProvider = ({
   children,
   authUser,
 }) => {
+  const client = generateClient();
   // =========================================================
   // USER
   // =========================================================
@@ -379,6 +380,239 @@ export const TripWiseProvider = ({
       );
     } catch {}
   }, [notifications]);
+
+  // =========================================================
+// AWS CLOUD SYNC
+// =========================================================
+
+useEffect(() => {
+  if (!authUser) return;
+
+  let cancelled = false;
+
+  const loadCloudData = async () => {
+    try {
+      console.log('☁️ Loading TripWise data from AWS...');
+
+      // -------------------------
+      // EXPENSES
+      // -------------------------
+      const expenseResult =
+        await client.models.Expense.list();
+
+      if (!cancelled && !expenseResult.errors?.length) {
+        const cloudExpenses = (expenseResult.data || []).map(
+          (item) => ({
+            id: item.id,
+            merchant:
+              item.description || 'Expense',
+            amount: Number(item.amount || 0),
+            category:
+              item.category || 'Other',
+            date:
+              item.date ||
+              new Date().toISOString().split('T')[0],
+            notes:
+              item.description || '',
+            tripId:
+              item.tripId || null,
+          })
+        );
+
+        if (cloudExpenses.length > 0) {
+  setExpenses((current) => {
+    const merged = [...current];
+
+    cloudExpenses.forEach((cloudExpense) => {
+      const existingIndex = merged.findIndex(
+        (localExpense) => {
+          // Same AWS record ID
+          if (
+            localExpense.id === cloudExpense.id
+          ) {
+            return true;
+          }
+
+          // Match a local copy with its AWS copy
+          return (
+            localExpense.merchant ===
+              cloudExpense.merchant &&
+            Number(localExpense.amount) ===
+              Number(cloudExpense.amount) &&
+            localExpense.category ===
+              cloudExpense.category &&
+            localExpense.date ===
+              cloudExpense.date
+          );
+        }
+      );
+
+      if (existingIndex >= 0) {
+        merged[existingIndex] = cloudExpense;
+      } else {
+        merged.unshift(cloudExpense);
+      }
+    });
+
+    // -------------------------------------------------
+    // REMOVE DUPLICATE RECORDS
+    // -------------------------------------------------
+    const seenIds = new Set();
+
+    const uniqueExpenses = merged.filter(
+      (expense) => {
+        if (!expense?.id) {
+          return true;
+        }
+
+        if (seenIds.has(expense.id)) {
+          return false;
+        }
+
+        seenIds.add(expense.id);
+        return true;
+      }
+    );
+
+    return uniqueExpenses;
+  });
+}
+      }
+
+      // -------------------------
+      // TRIPS
+      // -------------------------
+      const tripResult =
+        await client.models.Trip.list();
+
+      if (!cancelled && !tripResult.errors?.length) {
+        const cloudTrips = (tripResult.data || []).map(
+          (item) => ({
+            id: item.id,
+            title:
+              item.title || 'Trip',
+            destination:
+              item.destination || 'Unknown',
+            dates:
+              item.startDate ||
+              item.endDate ||
+              'Upcoming',
+            budget:
+              Number(item.budget || 0),
+            status:
+              item.status || 'Upcoming',
+
+            // UI fields not stored in AWS
+            days: 3,
+            nights: 2,
+            monthYear: '2026',
+            travelers: 1,
+            spent: 0,
+            daysElapsed: 0,
+            image:
+              'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80',
+            coverImage:
+              'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80',
+            travelStyle: 'Moderate',
+            categoryAllocations: {},
+            recoveryApplied: false,
+          })
+        );
+
+        if (cloudTrips.length > 0) {
+          setTrips((current) => {
+            const cloudIds = new Set(
+              cloudTrips.map((trip) => trip.id)
+            );
+
+            const localOnly = current.filter(
+              (trip) => !cloudIds.has(trip.id)
+            );
+
+            return [
+              ...cloudTrips,
+              ...localOnly,
+            ];
+          });
+        }
+      }
+
+      // -------------------------
+      // TRIP EXPENSES
+      // -------------------------
+      const tripExpenseResult =
+        await client.models.TripExpense.list();
+
+      if (
+        !cancelled &&
+        !tripExpenseResult.errors?.length
+      ) {
+        const cloudTripExpenses =
+          tripExpenseResult.data || [];
+
+        setTripExpenses((current) => {
+          const merged = {
+            ...current,
+          };
+
+          cloudTripExpenses.forEach((item) => {
+            const tripId = item.tripId;
+
+            if (!tripId) return;
+
+            const existing =
+              merged[tripId] || [];
+
+            const mappedExpense = {
+              id: item.id,
+              merchant:
+                item.description || 'Trip Expense',
+              amount:
+                Number(item.amount || 0),
+              category:
+                item.category || 'Other',
+              date:
+                item.date ||
+                new Date()
+                  .toISOString()
+                  .split('T')[0],
+              notes:
+                item.description || '',
+            };
+
+            const alreadyExists =
+              existing.some(
+                (expense) =>
+                  expense.id === item.id
+              );
+
+            if (!alreadyExists) {
+              merged[tripId] = [
+                mappedExpense,
+                ...existing,
+              ];
+            }
+          });
+
+          return merged;
+        });
+      }
+
+      console.log('☁️ TripWise AWS sync complete');
+    } catch (error) {
+      console.error(
+        '☁️ TripWise AWS sync failed:',
+        error
+      );
+    }
+  };
+
+  loadCloudData();
+
+  return () => {
+    cancelled = true;
+  };
+}, [authUser]);
 
   // =========================================================
 // AUTOMATIC MONTHLY BUDGET ALERTS

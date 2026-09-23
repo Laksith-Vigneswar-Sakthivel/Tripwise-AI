@@ -30,6 +30,19 @@ export const OverviewPage = () => {
     setActiveTripId,
   } = useTripWise();
 
+  const getGreeting = () => {
+  const hour = new Date().getHours();
+
+  if (hour < 12) {
+    return 'Good Morning';
+  }
+
+  if (hour < 15) {
+    return 'Good Afternoon';
+  }
+
+  return 'Good Evening';
+};
   // ============================================================
   // FINANCIAL SUMMARY
   // ============================================================
@@ -216,7 +229,7 @@ export const OverviewPage = () => {
 
       <PageHeader
         eyebrow="FINANCIAL OVERVIEW"
-        title={`Good morning, ${user.name || 'Laksith'}.`}
+        title={`${getGreeting()}, ${user.name || 'Laksith'}.`}
         subtitle="Here's how your money is moving this month."
         isAiPowered
         actions={
